@@ -1,61 +1,61 @@
-[English Version](README_EN.md)
+[Русская версия](README.ru.md)
 
 # ESP32 Wrover Web Radio
 
-Многофункциональный интернет-радио плеер на базе модуля ESP32 Wrover. Проект позволяет прослушивать потоковое аудио из интернета, отображать информацию на OLED-дисплее и управляться с помощью физических кнопок, по протоколу MQTT и через Telegram-бота.
+A multifunctional internet radio player based on the ESP32 Wrover module. The project allows you to listen to streaming audio from the internet, display information on an OLED screen, and control it using physical buttons, the MQTT protocol, and a Telegram bot.
 
-## Возможности
+## Features
 
-- **Потоковое аудио:** Проигрывание интернет-радиостанций из предустановленного списка.
-- **Качественный звук:** Вывод звука через I2S на внешний ЦАП (например, MAX98357A или PCM5102).
-- **Информативный дисплей:** 128x64 SSD1306 OLED-дисплей для отображения статуса:
-  - Номер и название станции
-  - Название текущего трека (Stream Title)
-  - Время (синхронизация по NTP)
-  - Уровень громкости
-  - Уровень сигнала WiFi (RSSI)
-  - Статус питания и режима сна (Sleep)
-- **Гибкое управление:**
-  - **Физические кнопки:** Управление питанием, режимом сна и переключением станций.
-  - **MQTT:** Полное удаленное управление и мониторинг состояния.
-  - **Telegram Бот:** Базовые команды, получение статуса и обновление прошивки "по воздуху" (OTA).
-- **Автоматизация:**
-  - **Будильники:** Настройка времени автоматического включения и выключения.
-  - **Таймер сна (Sleep):** Плавное уменьшение громкости с последующим выключением.
-- **Надёжность:**
-  - Автоматическое переподключение к WiFi и аудиопотоку при обрыве связи.
-  - Сохранение настроек будильника в энергонезависимой памяти (EEPROM).
-- **Конфигурация:** Поддержка двух аппаратных конфигураций через макрос `ESP_WROVER`.
+- **Streaming Audio:** Plays internet radio stations from a predefined list.
+- **High-Quality Sound:** Audio output via I2S to an external DAC (e.g., MAX98357A or PCM5102).
+- **Informative Display:** A 128x64 SSD1306 OLED display shows status information:
+  - Station number and name
+  - Current track name (Stream Title)
+  - Time (synchronized via NTP)
+  - Volume level
+  - WiFi signal strength (RSSI)
+  - Power and sleep mode status
+- **Flexible Control:**
+  - **Physical Buttons:** Control power, sleep mode, and station switching.
+  - **MQTT:** Full remote control and status monitoring.
+  - **Telegram Bot:** Basic commands, status retrieval, and over-the-air (OTA) firmware updates.
+- **Automation:**
+  - **Alarms:** Set times for automatic power on and off.
+  - **Sleep Timer:** Gradually decreases volume before shutting down.
+- **Reliability:**
+  - Automatic reconnection to WiFi and the audio stream if the connection is lost.
+  - Alarm settings are saved in non-volatile memory (EEPROM).
+- **Configuration:** Supports two hardware configurations via the `ESP_WROVER` macro.
 
-## Аппаратные компоненты
+## Hardware Components
 
-- Модуль ESP32 Wrover.
-- I2S ЦАП (например, MAX98357A, PCM5102).
-- I2C OLED-дисплей 128x64 на контроллере SSD1306.
-- Тактовые кнопки (минимум 4).
-- Опционально: реле для управления внешним усилителем, FM-трансмиттер.
+- ESP32 Wrover module.
+- I2S DAC (e.g., MAX98357A, PCM5102).
+- I2C 128x64 OLED display with an SSD1306 controller.
+- Tactile buttons (at least 4).
+- Optional: A relay to control an external amplifier, FM transmitter.
 
-### Схема подключения (Pinout)
+### Pinout
 
-| Пин ESP32 | Назначение        |
+| ESP32 Pin | Purpose           |
 | :-------- | :---------------- |
 | `25`      | I2S DOUT (DIN)    |
 | `27`      | I2S BCLK          |
 | `26`      | I2S LRC           |
-| `19`      | Кнопка POWER      |
-| `15`      | Кнопка SLEEP      |
-| `18`      | Кнопка CH+ (UP)   |
-| `4`       | Кнопка CH- (DOWN) |
-| `2`       | LED (синий)       |
-| `32`      | Реле 1            |
-| `33`      | Реле 2            |
-| `23`      | Питание FM-TX     |
+| `19`      | Button POWER      |
+| `15`      | Button SLEEP      |
+| `18`      | Button CH+ (UP)   |
+| `4`       | Button CH- (DOWN) |
+| `2`       | LED (blue)        |
+| `32`      | Relay 1           |
+| `33`      | Relay 2           |
+| `23`      | FM-TX Power       |
 | `21`      | I2C SDA (OLED)    |
 | `22`      | I2C SCL (OLED)    |
 
-## Программное обеспечение и библиотеки
+## Software and Libraries
 
-Проект создан с использованием PlatformIO. Основные зависимости:
+The project is built using PlatformIO. Key dependencies include:
 
 - `espressif/arduino-esp32`
 - `schreibfaul/Audio`
@@ -67,77 +67,60 @@
 - `GyverLibs/FastBot`
 - `knolleary/PubSubClient`
 
-## Настройка
+## Configuration
 
-Все основные настройки производятся в файле `src/main.cpp`:
+All secret data (passwords, tokens) is stored in a separate file for security.
 
-1.  **WiFi:** Добавьте SSID и пароли ваших сетей в массивы `ssidList` и `passwordList`.
+1.  **Create the configuration file:** Copy the `src/secrets.h.example` file to a new file named `src/secrets.h`.
+2.  **Fill in `src/secrets.h`:** Open the newly created `src/secrets.h` file and enter your credentials:
+    - **WiFi:** Your network SSIDs and passwords in the `ssidList` and `passwordList` arrays.
+    - **Telegram:** Your bot's token in `BOT_TOKEN` and your admin chat ID in `ADMIN_CHAT_ID`.
+    - **MQTT:** Your broker's server address, login, and password.
+3.  **Radio Stations:** The list of radio station URLs is still located in `src/main.cpp` in the `listStation` array.
 
-    ```cpp
-    const char *ssidList[] = {"your_ssid1", "your_ssid2"};
-    const char *passwordList[] = {"your_pass1", "your_pass2"};
-    ```
+## Controls
 
-2.  **Telegram:** Укажите токен вашего бота в `BOT_TOKEN` и ваш ID администратора в `idAdmin1`.
+### Physical Buttons
 
-    ```cpp
-    #define BOT_TOKEN "YOUR_TELEGRAM_BOT_TOKEN"
-    String idAdmin1 = "YOUR_TELEGRAM_CHAT_ID";
-    ```
-
-3.  **MQTT:** Настройте адрес сервера, логин и пароль.
-
-    ```cpp
-    const char *mqtt_server = "your_mqtt_broker_ip";
-    #define login "your_mqtt_login"
-    #define pass "your_mqtt_password"
-    ```
-
-4.  **Радиостанции:** Список URL-адресов радиостанций находится в массиве `listStation`.
-
-## Управление
-
-### Физические кнопки
-
-- **POWER:** Включение/выключение устройства. Удержание - перезагрузка.
-- **SLEEP:** Активация/деактивация таймера сна. Удержание - вкл/выкл FM-трансмиттера.
-- **CH+ / CH-:** Переключение станций. Удержание - изменение громкости.
+- **POWER:** Turn the device on/off. Hold to reboot.
+- **SLEEP:** Activate/deactivate the sleep timer. Hold to toggle the FM transmitter.
+- **CH+ / CH-:** Switch stations. Hold to change volume.
 
 ### MQTT
 
-Топики зависят от макроса `ESP_WROVER` (`WebRadio1` или `WebRadio2`).
+Topics depend on the `ESP_WROVER` macro (`WebRadio1` or `WebRadio2`).
 
-- **Входящие команды (topic_in):** `Home/WebRadioX/Action`
+- **Incoming commands (topic_in):** `Home/WebRadioX/Action`
 
-  - `?`: Запросить текущий статус.
-  - `1` / `0`: Включить / выключить.
-  - `b1` / `b2` / `b3` / `b4`: Эмуляция нажатия кнопок Power / Sleep / CH+ / CH-.
-  - `vol+` / `vol-`: Увеличить / уменьшить громкость.
-  - `c<N>`: Включить и переключиться на станцию с номером `N`.
-  - `h<url>`: Проигрывать поток по указанному `url`.
-  - `s<seconds>`: Установить будильник (время в секундах от полуночи).
-  - `sAlarm OFF`: Отключить будильник.
+  - `?`: Request current status.
+  - `1` / `0`: Turn on / off.
+  - `b1` / `b2` / `b3` / `b4`: Emulate button presses for Power / Sleep / CH+ / CH-.
+  - `vol+` / `vol-`: Increase / decrease volume.
+  - `c<N>`: Turn on and switch to station number `N`.
+  - `h<url>`: Play stream from the specified `url`.
+  - `s<seconds>`: Set alarm (time in seconds from midnight).
+  - `sAlarm OFF`: Disable alarm.
 
-- **Исходящие статусы (topic\_\*):**
-  - `Home/WebRadioX/Log`: Общие сообщения и информация об аудиопотоке.
-  - `Home/WebRadioX/Station`: Текущая станция (номер и имя).
-  - `Home/WebRadioX/Title`: Название трека.
-  - `Home/WebRadioX/State`: Состояние (Power ON/OFF, ON SLEEP).
-  - `Home/WebRadioX/FreeHeap`: Свободная память.
-  - `Home/WebRadioX/Volume`: Уровень громкости.
-  - `Home/WebRadioX/Alarm`: Статус будильника.
+- **Outgoing statuses (topic\_\*):**
+  - `Home/WebRadioX/Log`: General messages and audio stream information.
+  - `Home/WebRadioX/Station`: Current station (number and name).
+  - `Home/WebRadioX/Title`: Track title.
+  - `Home/WebRadioX/State`: State (Power ON/OFF, ON SLEEP).
+  - `Home/WebRadioX/FreeHeap`: Free heap memory.
+  - `Home/WebRadioX/Volume`: Volume level.
+  - `Home/WebRadioX/Alarm`: Alarm status.
 
-### Telegram Бот
+### Telegram Bot
 
-- `/start`: Показать меню команд.
-- `/ping`: Получить статус, аптайм и RSSI.
-- `/restart`: Перезагрузить устройство.
-- **Отправка `.bin` файла:** Запуск обновления прошивки (OTA).
+- `/start`: Show command menu.
+- `/ping`: Get status, uptime, and RSSI.
+- `/restart`: Reboot the device.
+- **Sending a `.bin` file:** Initiates a firmware update (OTA).
 
-## Сборка и прошивка
+## Build and Flash
 
-1.  Установите Visual Studio Code с расширением PlatformIO IDE.
-2.  Клонируйте репозиторий.
-3.  Откройте папку с проектом в VS Code.
-4.  Выполните настройку в `src/main.cpp` (см. раздел "Настройка").
-5.  Соберите и прошейте устройство с помощью команд PlatformIO.
+1.  Install Visual Studio Code with the PlatformIO IDE extension.
+2.  Clone the repository.
+3.  Open the project folder in VS Code.
+4.  Configure the settings in `src/main.cpp` (see the 'Configuration' section).
+5.  Build and flash the device using PlatformIO commands.

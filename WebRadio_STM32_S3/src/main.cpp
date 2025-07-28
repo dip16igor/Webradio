@@ -2,8 +2,7 @@
 #include "WiFi.h"
 #include "secrets.h"
 #include "Audio.h"
-// #include <Wire.h>
-#include <U8g2lib.h> // текст и графика, с видеобуфером
+#include <U8g2lib.h> // Text and graphics, with video buffer
 #include <EncButton.h>
 
 #include <TimeLib.h>
@@ -29,7 +28,7 @@
 
 #define DEBUG
 
-#define OffsetTime 5 * 60 * 60 // разница с UTC
+#define OffsetTime 5 * 60 * 60 // difference with UTC
 
 #ifdef ESP_WROVER
 #define MQTT_CLIENT "WebRadio2" // todo
@@ -54,7 +53,7 @@
 #endif
 
 FastBot bot(BOT_TOKEN);
-#define TelegramDdosTimeout 5000     // таймаут
+#define TelegramDdosTimeout 5000     // timeout
 const unsigned long BOT_MTBS = 3600; // mean time between scan messages
 
 boolean MQTT_available;
@@ -68,7 +67,7 @@ Button b0(KEY_POWER);
 Button b1(KEY_SLEEP);
 Button b2(KEY_UP);
 Button b3(KEY_DOWN);
-VirtButton b4; // виртуальная кнопка
+VirtButton b4; // virtual button
 
 WiFiClient wclient;
 PubSubClient client(wclient);
@@ -109,64 +108,64 @@ const char *subString2 = "403";
 const char *subString3 = "500";
 // int counterSleep;
 
-unsigned long previousMillis = 0; // переменная для хранения предыдущего значения millis()
-const long interval = 60000;      // интервал в миллисекундах (1 минута). Общее время выключения по SLEEP = 18 минут
+unsigned long previousMillis = 0; // variable to store the previous millis() value
+const long interval = 60000;      // interval in milliseconds (1 minute). Total shutdown time for SLEEP = 18 minutes
 
 unsigned long lastUpdateTime = 0;
-const unsigned long updateInterval = 2000; // 2 секунда
+const unsigned long updateInterval = 2000; // 2 seconds
 
 unsigned long lastUpdateTimeMQTT = 0;
-const unsigned long updateIntervalMQTT = 5000; // 5 секунда
+const unsigned long updateIntervalMQTT = 5000; // 5 seconds
 
-int targetVol = 12; // целевое значение для vol
-int step = 1;       // шаг изменения vol
+int targetVol = 12; // target value for vol
+int step = 1;       // vol change step
 
 unsigned long currentMillis1 = 0;
-unsigned long previousMillis1 = 0; // переменная для хранения предыдущего значения millis()
-unsigned long previousMillis2 = 0; // переменная для хранения предыдущего значения millis()
-unsigned long interval1 = 200;     // интервал в миллисекундах. шаг увеличения громкости
-unsigned long interval2 = 10000;   // интервал в миллисекундах (10 сек)
+unsigned long previousMillis1 = 0; // variable to store the previous millis() value
+unsigned long previousMillis2 = 0; // variable to store the previous millis() value
+unsigned long interval1 = 200;     // interval in milliseconds. volume increase step
+unsigned long interval2 = 10000;   // interval in milliseconds (10 sec)
 
 bool restart = 0;
 unsigned long uptime;
 unsigned long currentMillis = 0;
 
-char buffer[10]; // Буфер для хранения строки
+char buffer[10]; // Buffer for storing a string
 char buffer1[300];
 
 int sec_alarm_EEPROM = 0;
 
 // OLED SSD1306
-U8G2_SSD1306_128X64_NONAME_F_HW_I2C u8g2(U8G2_R0, /* reset=*/U8X8_PIN_NONE); // настройки OLEDsdfsdf
+U8G2_SSD1306_128X64_NONAME_F_HW_I2C u8g2(U8G2_R0, /* reset=*/U8X8_PIN_NONE); // OLED settings
 
-// объявляем массив строк c радиостанциями
+// declare an array of strings with radio stations
 const char *listStation1[] = {
-    "http://silverrain.hostingradio.ru/silver128.mp3", // 1 Серебряный Дождь
+    "http://silverrain.hostingradio.ru/silver128.mp3", // 1 Silver Rain
     "https://live.radiospinner.com/smthlng-64",        // 2
-    "https://live.radiospinner.com/bird-sounds-64",    // птички
-    //"http://streaming.radio.co/s5c5da6a36/listen",            // птички 2 Не работают
-    "https://ice6.abradio.cz/relax-morning-birds128.mp3",       // птички 1
+    "https://live.radiospinner.com/bird-sounds-64",    // birds
+    //"http://streaming.radio.co/s5c5da6a36/listen",            // birds 2 Not working
+    "https://ice6.abradio.cz/relax-morning-birds128.mp3",       // birds 1
     "http://rautemusik-de-hz-fal-stream12.radiohost.de/lounge", //
     //"https://str.pcradio.ru/relax_fm_nature-hi",
-    //"https://str.pcradio.ru/hirschmilch_chill-hi", // Хорошая, но не работает
-    //"https://ice6.abradio.cz/relax-sea128.mp3",               // Море
+    //"https://str.pcradio.ru/hirschmilch_chill-hi", // Good, but not working
+    //"https://ice6.abradio.cz/relax-sea128.mp3",               // Sea
 
     "https://stream.relaxfm.ee/cafe_HD",
     "http://streams.bigfm.de/bigfm-sunsetlounge-128-mp3", // 2
     "https://stream.relaxfm.ee/instrumental_HD",
     "https://stream.laut.fm/1000oldies",                  //
-    "https://laut.fm/100090er",                           // 90е
+    "https://laut.fm/100090er",                           // 90s
     "http://icecast.pulsradio.com/relaxHD.mp3",           // Pulse Radio
     "http://streams.electronicmusicradiogroup.org:9050/", //
 
     "http://199.233.234.34:25373/listen.pls", // GOLD INSTRUMENTAL
-    //"http://nap.casthost.net:8626/listen.pls",            // медитация
+    //"http://nap.casthost.net:8626/listen.pls",            // meditation
     //"https://101.ru/radio/channel/200",
-    "https://live.radiospinner.com/complete-relaxation-64", // медитация
+    "https://live.radiospinner.com/complete-relaxation-64", // meditation
 };
 
 const char *listStation[] = {
-    "http://silverrain.hostingradio.ru/silver128.mp3",                   // 1 Серебряный Дождь
+    "http://silverrain.hostingradio.ru/silver128.mp3",                   // 1 Silver Rain
     "https://live.radiospinner.com/smthlng-64",                          // Relax
     "http://ic7.101.ru:8000/v13_1",                                      // Relax FM
     "http://rmfstream1.interia.pl:8000/rmf_queen",                       // RFM Queen
@@ -234,7 +233,7 @@ const char *listStation[] = {
     "https://live.radiospinner.com/ngmtcbr-64",                          // ngmtcbr
     "https://live.radiospinner.com/nwagewv-64",                          // nwagewv
     "https://live.radiospinner.com/smooth-jazz-64",                      // smooth-jazz
-    "https://live.radiospinner.com/sslp-64",                             // море ?
+    "https://live.radiospinner.com/sslp-64",                             // sea ?
     "https://ouifmbluesnrock.ice.infomaniak.ch/ouifmbluesnrock-128.mp3", // Blues N Rock
     "https://play.lofiradio.ru:8000/mp3_320",                            // LoFi Radio
     "https://radio.voltagefm.ru:9009/VoltageGOLD_64_aac",                // VoltageFM GOLD
@@ -260,19 +259,19 @@ void button_ChDn(void);
 
 int findStation(const char *searchString)
 {
-  size_t listSize = sizeof(listStation) / sizeof(listStation[0]); // Определяем размер массива
+  size_t listSize = sizeof(listStation) / sizeof(listStation[0]); // Determine the size of the array
 
   for (size_t i = 0; i < listSize; ++i)
   {
     if (strcmp(listStation[i], searchString) == 0)
-    {           // Сравниваем строки
-      return i; // Возвращаем индекс найденной строки
+    {           // Compare strings
+      return i; // Return the index of the found string
     }
   }
-  return -1; // Если строка не найдена, возвращаем -1
+  return -1; // If the string is not found, return -1
 }
 
-// MQTT прием сообщения от брокера
+// MQTT receive message from broker
 void callback(char *topic, byte *payload, unsigned int length)
 {
   Serial.print("Message arrived [");
@@ -299,7 +298,7 @@ void callback(char *topic, byte *payload, unsigned int length)
     // Serial.println(payload[1]);
     //  client.publish(topic_out, "mqtt message arrived to Action");
     //   bot.sendMessage("MQTT rx messadge", ADMIN_CHAT_ID);
-    if (message == "?") // запрос состояния
+    if (message == "?") // status request
     {
       if (StatusPower)
         client.publish(topic_state, "Power ON");
@@ -317,7 +316,7 @@ void callback(char *topic, byte *payload, unsigned int length)
         client.publish(topic_title, myCString);
       }
 
-      itoa(vol, buffer, 10); // Преобразование значения int в строку
+      itoa(vol, buffer, 10); // Convert int value to string
       client.publish(topic_volume, buffer);
 
       if (StatusSleep)
@@ -342,7 +341,7 @@ void callback(char *topic, byte *payload, unsigned int length)
       // Serial.println(StreamTitle);
       // Serial.println(myCString);
 
-      if (Alarm.readState(0)) // будильник запущен
+      if (Alarm.readState(0)) // alarm is running
       {
         int ss2 = Alarm.read(0);
         String strNumber = String(ss2);
@@ -361,7 +360,7 @@ void callback(char *topic, byte *payload, unsigned int length)
       }
     }
 
-    if (message == "b1") // ВКЛЮЧЕНИЕ
+    if (message == "b1") // POWER ON
     {
       button_Power();
     }
@@ -383,7 +382,7 @@ void callback(char *topic, byte *payload, unsigned int length)
       if (vol >= 21)
         vol = 21;
       audio.setVolume(vol);  // 0...21
-      itoa(vol, buffer, 10); // Преобразование значения int в строку
+      itoa(vol, buffer, 10); // Convert int value to string
 
       // client.publish(topic_out, "Vol +");
       client.publish(topic_volume, buffer);
@@ -394,13 +393,13 @@ void callback(char *topic, byte *payload, unsigned int length)
       if (vol <= 0)
         vol = 0;
       audio.setVolume(vol);  // 0...21
-      itoa(vol, buffer, 10); // Преобразование значения int в строку
+      itoa(vol, buffer, 10); // Convert int value to string
 
       // client.publish(topic_out, "Vol -");
       client.publish(topic_volume, buffer);
     }
 
-    if (message == "0") // ВЫКЛЮЧЕНИЕ
+    if (message == "0") // POWER OFF
     {
       // client.publish(topic_out, "WebRadio OFF");
       client.publish(topic_state, "Power OFF");
@@ -414,9 +413,9 @@ void callback(char *topic, byte *payload, unsigned int length)
       digitalWrite(RELAY1, LOW);
       digitalWrite(RELAY2, LOW);
 #endif
-      // digitalWrite(FMTX, LOW); // выкл питание FMTX
+      // digitalWrite(FMTX, LOW); // turn off FMTX power
 
-      digitalWrite(LED_BLUE, LOW); // выкл LED
+      digitalWrite(LED_BLUE, LOW); // turn off LED
 
       u8g2.setFont(u8g2_font_9x18B_tr);
       u8g2.clearBuffer();
@@ -429,7 +428,7 @@ void callback(char *topic, byte *payload, unsigned int length)
       u8g2.setContrast(1);
       audio.stopSong();
     }
-    if (message == "1") // ВКЛЮЧЕНИЕ
+    if (message == "1") // POWER ON
     {
       // client.publish(topic_out, "WebRadio ON");
       client.publish(topic_state, "Power ON");
@@ -443,9 +442,9 @@ void callback(char *topic, byte *payload, unsigned int length)
       digitalWrite(RELAY1, HIGH);
       digitalWrite(RELAY2, HIGH);
 #endif
-      // digitalWrite(FMTX, HIGH); // вкл питание FMTX
+      // digitalWrite(FMTX, HIGH); // turn on FMTX power
 
-      digitalWrite(LED_BLUE, HIGH); // вкл LED
+      digitalWrite(LED_BLUE, HIGH); // turn on LED
 
       u8g2.setFont(u8g2_font_9x18B_tr);
       u8g2.clearBuffer();
@@ -456,17 +455,17 @@ void callback(char *topic, byte *payload, unsigned int length)
 
       vol = 0;
       audio.setVolume(vol);                         // 0...21
-      audio.connecttohost(listStation[NEWStation]); // переключаем станцию
+      audio.connecttohost(listStation[NEWStation]); // switch station
       delay(2000);
 
-      interval1 = 100; // шаг по времени для увеличения громкости в мс
-      PowerOnFast = 1; // запуск быстрого увеличения громкости
+      interval1 = 100; // time step for volume increase in ms
+      PowerOnFast = 1; // start fast volume increase
       previousMillis1 = millis();
 
       // UpdateScreen();
     }
 
-    if (payload[0] == '3') // ВКЛЮЧЕНИЕ ПТИЧКИ
+    if (payload[0] == '3') // TURN ON BIRDS
     {
       Serial.print("CH2 ON");
       StatusPower = 1;
@@ -483,21 +482,21 @@ void callback(char *topic, byte *payload, unsigned int length)
       NEWStation = 57;
       Channel = NEWStation;
       OLDStation = NEWStation;
-      audio.connecttohost(listStation[NEWStation]); // переключаем станцию ПТИЧКИ
+      audio.connecttohost(listStation[NEWStation]); // switch to BIRDS station
       delay(2000);
 
-      interval1 = 100; // шаг по времени для увеличения громкости в мс
-      PowerOnFast = 1; // запуск быстрого увеличения громкости
+      interval1 = 100; // time step for volume increase in ms
+      PowerOnFast = 1; // start fast volume increase
       previousMillis1 = millis();
       // client.publish(topic_out, "WebRadio ON");
       client.publish(topic_state, "Power ON");
     }
 
-    if (payload[0] == 'c') // включить питание и станцию number
+    if (payload[0] == 'c') // turn on power and station number
     {
-      String numberPart = message.substring(1); // отделяем оставшуюся часть строки
+      String numberPart = message.substring(1); // separate the remaining part of the string
 
-      int number = numberPart.toInt(); // преобразуем оставшуюся часть в int
+      int number = numberPart.toInt(); // convert the remaining part to int
 
       Serial.print("Set channel ");
       Serial.println(number);
@@ -509,24 +508,24 @@ void callback(char *topic, byte *payload, unsigned int length)
       digitalWrite(RELAY2, HIGH);
 
       client.publish(topic_state, "Power ON");
-      digitalWrite(LED_BLUE, HIGH); // вкл LED
+      digitalWrite(LED_BLUE, HIGH); // turn on LED
 
       vol = 0;
       audio.setVolume(vol); // 0...21
       NEWStation = number - 1;
       Channel = NEWStation;
       OLDStation = NEWStation;
-      audio.connecttohost(listStation[NEWStation]); // переключаем станцию ПТИЧКИ
+      audio.connecttohost(listStation[NEWStation]); // switch to BIRDS station
       delay(2000);
 
-      interval1 = 100; // шаг по времени для увеличения громкости в мс
-      PowerOnFast = 1; // запуск быстрого увеличения громкости
+      interval1 = 100; // time step for volume increase in ms
+      PowerOnFast = 1; // start fast volume increase
       previousMillis1 = millis();
     }
 
-    if (payload[0] == 'h') // ссылка на станцию
+    if (payload[0] == 'h') // link to station
     {
-      // Преобразование в const char *
+      // Convert to const char *
       const char *host = message.c_str();
       int nStation = findStation(host);
       if (nStation >= 0)
@@ -535,18 +534,18 @@ void callback(char *topic, byte *payload, unsigned int length)
         Channel = NEWStation;
         OLDStation = NEWStation;
       }
-      audio.connecttohost(host); // переключаем станцию
+      audio.connecttohost(host); // switch station
     }
 
     if (payload[0] == 's')
     {
-      Serial.println("Установка будильника..");
+      Serial.println("Setting alarm..");
 
       int hours = 0;
       int minutes = 0;
       if (message.equals("sAlarm OFF"))
       {
-        // Serial.println("Выключаем будильник.");
+        // Serial.println("Turning off alarm.");
         // time_t tt11 = Alarm.read(0);
         // Serial.println(tt11);
         // tt11 = Alarm.read(1);
@@ -556,24 +555,24 @@ void callback(char *topic, byte *payload, unsigned int length)
         {
           Alarm.disable(0);
 
-          Serial.print("Будильник выключен. Сохранение в EEPROM .. ");
-          int address = 0; // адрес памяти для записи (от 0 до 511)
+          Serial.print("Alarm off. Saving to EEPROM .. ");
+          int address = 0; // memory address for writing (from 0 to 511)
           int secc = -1;
           sec_alarm_EEPROM = -1;
-          // Запись данных
-          EEPROM.write(address, (secc >> 24) & 0xFF);     // Запись байта 3
-          EEPROM.write(address + 1, (secc >> 16) & 0xFF); // Запись байта 2
-          EEPROM.write(address + 2, (secc >> 8) & 0xFF);  // Запись байта 1
-          EEPROM.write(address + 3, secc & 0xFF);         // Запись байта 0
-          EEPROM.commit();                                // Сохранение изменений
+          // Writing data
+          EEPROM.write(address, (secc >> 24) & 0xFF);     // Write byte 3
+          EEPROM.write(address + 1, (secc >> 16) & 0xFF); // Write byte 2
+          EEPROM.write(address + 2, (secc >> 8) & 0xFF);  // Write byte 1
+          EEPROM.write(address + 3, secc & 0xFF);         // Write byte 0
+          EEPROM.commit();                                // Save changes
 
           Serial.println("OK");
         }
       }
       else
       {
-        // Удаляем первый символ 's'
-        String timePart = message.substring(1); // Получаем "12345"
+        // Remove the first character 's'
+        String timePart = message.substring(1); // Get "12345"
 
         int secc = timePart.toInt();
 
@@ -595,7 +594,7 @@ void callback(char *topic, byte *payload, unsigned int length)
           // Serial.println(minutes);
 
           // int tt2 = hours * 60 * 60 + minutes * 60;
-          Alarm.write(0, secc); // перенастройка будильника 0 и запуск
+          Alarm.write(0, secc); // reconfigure alarm 0 and start
 
           // Serial.print("Секунды: ");
           // Serial.println(tt2);
@@ -609,14 +608,14 @@ void callback(char *topic, byte *payload, unsigned int length)
           //   Serial.println(Alarm.read(i));
           // }
 
-          Serial.print("Сохранение в EEPROM ..");
-          int address = 0; // адрес памяти для записи (от 0 до 511)
-          // Запись данных
-          EEPROM.write(address, (secc >> 24) & 0xFF);     // Запись байта 3
-          EEPROM.write(address + 1, (secc >> 16) & 0xFF); // Запись байта 2
-          EEPROM.write(address + 2, (secc >> 8) & 0xFF);  // Запись байта 1
-          EEPROM.write(address + 3, secc & 0xFF);         // Запись байта 0
-          EEPROM.commit();                                // Сохранение изменений
+          Serial.print("Saving to EEPROM ..");
+          int address = 0; // memory address for writing (from 0 to 511)
+          // Writing data
+          EEPROM.write(address, (secc >> 24) & 0xFF);     // Write byte 3
+          EEPROM.write(address + 1, (secc >> 16) & 0xFF); // Write byte 2
+          EEPROM.write(address + 2, (secc >> 8) & 0xFF);  // Write byte 1
+          EEPROM.write(address + 3, secc & 0xFF);         // Write byte 0
+          EEPROM.commit();                                // Save changes
 
           sec_alarm_EEPROM = secc;
           Serial.println(" OK ");
@@ -624,7 +623,7 @@ void callback(char *topic, byte *payload, unsigned int length)
         // Alarm.alarmRepeat(hours, minutes, 00, PowerON_1); // POWER_ON_1
       }
 
-      Serial.println("Запущенные будильники:");
+      Serial.println("Running alarms:");
       for (int i = 0; i < 4; i++)
       {
         int hh = 0;
@@ -740,7 +739,7 @@ void UpdateScreen(void)
   }
   else
   {
-    u8g2.setCursor(14 + 20, 10); // ЧАСЫ
+    u8g2.setCursor(14 + 20, 10); // CLOCK
     u8g2.setFont(u8g2_font_crox2hb_tn);
     if (timeStatus() == 2)
     {
@@ -867,7 +866,7 @@ void UpdateScreen1(void)
 {
   u8g2.clearBuffer();
 
-  if (hour() >= 6 && hour() < 22) // Время работы часов
+  if (hour() >= 6 && hour() < 22) // Clock operating time
   {
     if (hour() < 10)
     {
@@ -921,9 +920,9 @@ void button_Power(void)
     digitalWrite(RELAY1, HIGH);
     digitalWrite(RELAY2, HIGH);
 #endif
-    // digitalWrite(FMTX, HIGH); // вкл питание FMTX
+    // digitalWrite(FMTX, HIGH); // turn on FMTX power
 
-    digitalWrite(LED_BLUE, HIGH); // вкл LED
+    digitalWrite(LED_BLUE, HIGH); // turn on LED
 
     u8g2.setFont(u8g2_font_9x18B_tr);
     u8g2.clearBuffer();
@@ -934,11 +933,11 @@ void button_Power(void)
 
     vol = 0;
     audio.setVolume(vol);                         // 0...21
-    audio.connecttohost(listStation[NEWStation]); // переключаем станцию
+    audio.connecttohost(listStation[NEWStation]); // switch station
     delay(2000);
 
-    interval1 = 100; // шаг по времени для увеличения громкости в мс
-    PowerOnFast = 1; // запуск быстрого увеличения громкости
+    interval1 = 100; // time step for volume increase in ms
+    PowerOnFast = 1; // start fast volume increase
     previousMillis1 = millis();
 
     UpdateScreen();
@@ -958,9 +957,9 @@ void button_Power(void)
     digitalWrite(RELAY1, LOW);
     digitalWrite(RELAY2, LOW);
 #endif
-    // digitalWrite(FMTX, LOW); // выкл питание FMTX
+    // digitalWrite(FMTX, LOW); // turn off FMTX power
 
-    digitalWrite(LED_BLUE, LOW); // выкл LED
+    digitalWrite(LED_BLUE, LOW); // turn off LED
 
     u8g2.setFont(u8g2_font_9x18B_tr);
     u8g2.clearBuffer();
@@ -984,9 +983,9 @@ void button_Sleep(void)
       // client.publish(topic_out, "SLEEP mode On");
       client.publish(topic_state, "ON SLEEP");
       StatusSleep = 1;
-      previousMillis = millis(); // запоминаем время
+      previousMillis = millis(); // remember the time
       // digitalWrite(RELAY, LOW);
-      // digitalWrite(LED_BLUE, HIGH); // вкл LED
+      // digitalWrite(LED_BLUE, HIGH); // turn on LED
       UpdateScreen();
     }
     else if (StatusSleep == 1)
@@ -997,10 +996,10 @@ void button_Sleep(void)
       vol = 12;
       audio.setVolume(vol); // 0...21
 
-      itoa(vol, buffer, 10); // Преобразование значения int в строку
+      itoa(vol, buffer, 10); // Convert int value to string
       client.publish(topic_volume, buffer);
       // digitalWrite(RELAY, HIGH);
-      // digitalWrite(LED_BLUE, LOW); // выкл LED
+      // digitalWrite(LED_BLUE, LOW); // turn off LED
       UpdateScreen();
     }
   }
@@ -1010,9 +1009,9 @@ void button_ChUp(void)
   if (StatusPower)
   {
     // client.publish(topic_out, "Channel +");
-    NEWStation++; // станция вперед
+    NEWStation++; // station forward
     if (NEWStation > sizeof(listStation) / sizeof(listStation[0]) - 1)
-      NEWStation = 0; // станция 0
+      NEWStation = 0; // station 0
   }
 }
 void button_ChDn(void)
@@ -1020,7 +1019,7 @@ void button_ChDn(void)
   if (StatusPower)
   {
     // client.publish(topic_out, "Channel -");
-    NEWStation--; // станция назад
+    NEWStation--; // station back
     if (NEWStation < 0)
       NEWStation = sizeof(listStation) / sizeof(listStation[0]) - 1; //
   }
@@ -1068,31 +1067,31 @@ void setup() // ************************************************* SETUP ********
   bool telegram_SW_upd_Mode = false;
   Serial.begin(115200);
 
-  pinMode(KEY_DOWN, INPUT_PULLUP);  // Станция назад
-  pinMode(KEY_UP, INPUT_PULLUP);    // Станция вперед
+  pinMode(KEY_DOWN, INPUT_PULLUP);  // Station back
+  pinMode(KEY_UP, INPUT_PULLUP);    // Station forward
   pinMode(KEY_SLEEP, INPUT_PULLUP); // SLEEP
   pinMode(KEY_POWER, INPUT_PULLUP); // POWER
 
 #ifdef ESP_WROVER
-  pinMode(RELAY1, OUTPUT);   // Реле
-  digitalWrite(RELAY1, LOW); // выкл реле
-  pinMode(RELAY2, OUTPUT);   // Реле
-  digitalWrite(RELAY2, LOW); // выкл реле
+  pinMode(RELAY1, OUTPUT);   // Relay
+  digitalWrite(RELAY1, LOW); // turn off relay
+  pinMode(RELAY2, OUTPUT);   // Relay
+  digitalWrite(RELAY2, LOW); // turn off relay
 #else
-  pinMode(RELAY1, OUTPUT);   // Реле
-  digitalWrite(RELAY1, LOW); // выкл реле
-  pinMode(RELAY2, OUTPUT);   // Реле
-  digitalWrite(RELAY2, LOW); // выкл реле
+  pinMode(RELAY1, OUTPUT);   // Relay
+  digitalWrite(RELAY1, LOW); // turn off relay
+  pinMode(RELAY2, OUTPUT);   // Relay
+  digitalWrite(RELAY2, LOW); // turn off relay
 #endif
 
   if (digitalRead(KEY_UP) == 0)
     telegram_SW_upd_Mode = true;
 
   pinMode(LED_BLUE, OUTPUT);   // LED
-  digitalWrite(LED_BLUE, LOW); // выкл LED
+  digitalWrite(LED_BLUE, LOW); // turn off LED
 
   pinMode(FMTX, OUTPUT);   //
-  digitalWrite(FMTX, LOW); // питание FMTX
+  digitalWrite(FMTX, LOW); // FMTX power
 
   audio.setPinout(I2S_BCLK, I2S_LRC, I2S_DOUT);
   audio.setVolume(vol); // 0...21
@@ -1113,7 +1112,7 @@ void setup() // ************************************************* SETUP ********
   u8g2.print("scaning WiFi..");
   u8g2.sendBuffer();
 
-  // Подключение к первой доступной Wi-Fi сети из списка
+  // Connecting to the first available Wi-Fi network from the list
   Serial.println("Scanning available networks...");
   int numNetworks = WiFi.scanNetworks();
 
@@ -1238,41 +1237,41 @@ void setup() // ************************************************* SETUP ********
   delay(2000);
 
   Serial.println("EEPROM start");
-  EEPROM.begin(32); // Инициализация EEPROM с размером 32 байт
+  EEPROM.begin(32); // Initialize EEPROM with a size of 32 bytes
 
-  int address = 0; // адрес памяти для записи (от 0 до 511)
-  // int value = 21600; // значение данных (от 0 до 65535)
+  int address = 0; // memory address for writing (from 0 to 511)
+  // int value = 21600; // data value (from 0 to 65535)
 
-  // // Запись данных
-  // EEPROM.write(address, (value >> 24) & 0xFF);     // Запись байта 3
-  // EEPROM.write(address + 1, (value >> 16) & 0xFF); // Запись байта 2
-  // EEPROM.write(address + 2, (value >> 8) & 0xFF);  // Запись байта 1
-  // EEPROM.write(address + 3, value & 0xFF);         // Запись байта 0
-  // EEPROM.commit();                                 // Сохранение изменений
+  // // Writing data
+  // EEPROM.write(address, (value >> 24) & 0xFF);     // Write byte 3
+  // EEPROM.write(address + 1, (value >> 16) & 0xFF); // Write byte 2
+  // EEPROM.write(address + 2, (value >> 8) & 0xFF);  // Write byte 1
+  // EEPROM.write(address + 3, value & 0xFF);         // Write byte 0
+  // EEPROM.commit();                                 // Save changes
 
-  // Чтение данных
-  byte byte3 = EEPROM.read(address);     // Чтение байта 3
-  byte byte2 = EEPROM.read(address + 1); // Чтение байта 2
-  byte byte1 = EEPROM.read(address + 2); // Чтение байта 1
-  byte byte0 = EEPROM.read(address + 3); // Чтение байта 0
+  // Reading data
+  byte byte3 = EEPROM.read(address);     // Read byte 3
+  byte byte2 = EEPROM.read(address + 1); // Read byte 2
+  byte byte1 = EEPROM.read(address + 2); // Read byte 1
+  byte byte0 = EEPROM.read(address + 3); // Read byte 0
 
-  sec_alarm_EEPROM = (byte3 << 24) | (byte2 << 16) | (byte1 << 8) | byte0; // Объединение байтов в 32-битное значение
+  sec_alarm_EEPROM = (byte3 << 24) | (byte2 << 16) | (byte1 << 8) | byte0; // Combine bytes into a 32-bit value
 
   Serial.print("EEPROM read:  ");
-  Serial.println(sec_alarm_EEPROM); // Вывод прочитанного значения
+  Serial.println(sec_alarm_EEPROM); // Output the read value
 
-  Alarm.alarmRepeat(6, 00, 00, PowerON_1);   // POWER_ON_1  будильник ID = 0
-  Alarm.alarmRepeat(23, 00, 00, PowerOFF_1); // POWER_OFF_1 будильник ID = 1
+  Alarm.alarmRepeat(6, 00, 00, PowerON_1);   // POWER_ON_1  alarm ID = 0
+  Alarm.alarmRepeat(23, 00, 00, PowerOFF_1); // POWER_OFF_1 alarm ID = 1
 
   if (sec_alarm_EEPROM == -1)
   {
     Alarm.disable(0);
-    Serial.println("Будильник выключен");
+    Serial.println("Alarm is off");
   }
   else
   {
-    Alarm.write(0, sec_alarm_EEPROM); // перенастройка будильника 0 и запуск
-    Serial.println("Будильник запущен");
+    Alarm.write(0, sec_alarm_EEPROM); // reconfigure alarm 0 and start
+    Serial.println("Alarm is running");
   }
   if (telegram_SW_upd_Mode)
   {
@@ -1324,11 +1323,11 @@ void setup() // ************************************************* SETUP ********
     digitalWrite(RELAY2, HIGH);
   #endif*/
 
-  digitalWrite(FMTX, LOW); // выкл питание FMTX
+  digitalWrite(FMTX, LOW); // turn off FMTX power
 
   client.publish(topic_state, "Power OFF");
 
-  digitalWrite(LED_BLUE, LOW); // выкл LED
+  digitalWrite(LED_BLUE, LOW); // turn off LED
   u8g2.setFont(u8g2_font_9x18B_tr);
   u8g2.clearBuffer();
   u8g2.setCursor(25, 32);
@@ -1344,12 +1343,12 @@ void loop() //*************************************************** LOOP *********
 {
   currentMillis = millis();
 
-  if ((currentMillis - previousMillis2 >= interval2) && ReconnectLater) // Переподключение раз в минуту, если нет связи
+  if ((currentMillis - previousMillis2 >= interval2) && ReconnectLater) // Reconnect once a minute if there is no connection
   {
     previousMillis2 = currentMillis;
     Serial.println("Reconnect to Host");
-    // вызов функции, которую нужно выполнить каждую минуту
-    audio.connecttohost(listStation[NEWStation]); // переключаем станцию
+    // call the function to be executed every minute
+    audio.connecttohost(listStation[NEWStation]); // switch station
   }
 
   client.loop(); // MQTT client
@@ -1361,7 +1360,7 @@ void loop() //*************************************************** LOOP *********
   b2.tick();
   b3.tick();
 
-  // обработка одновременного нажатия двух кнопок
+  // handling simultaneous pressing of two buttons
   b4.tick(b2, b3);
 
   if (b0.click())
@@ -1378,14 +1377,14 @@ void loop() //*************************************************** LOOP *********
     if (StatusRF == 0)
     {
       StatusRF = 1;
-      digitalWrite(FMTX, HIGH); // вкл питание FMTX
+      digitalWrite(FMTX, HIGH); // turn on FMTX power
       Serial.println("RF on");
       UpdateScreen();
     }
     else
     {
       StatusRF = 0;
-      digitalWrite(FMTX, LOW); // выкл питание FMTX
+      digitalWrite(FMTX, LOW); // turn off FMTX power
       Serial.println("RF off");
       UpdateScreen();
     }
@@ -1399,7 +1398,7 @@ void loop() //*************************************************** LOOP *********
 
   if (b2.step() && StatusPower == 1)
   {
-    vol++; // увеличиваем vol
+    vol++; // increase vol
     if (vol >= 21)
       vol = 21;
     UpdateScreen();
@@ -1410,7 +1409,7 @@ void loop() //*************************************************** LOOP *********
   }
   if (b3.step() && StatusPower == 1)
   {
-    vol--; // увеличиваем vol
+    vol--; // decrease vol
     if (vol <= 0)
       vol = 0;
     UpdateScreen();
@@ -1464,7 +1463,7 @@ void loop() //*************************************************** LOOP *********
     // char myChar[25];
     // snprintf(myChar, sizeof(myChar), "ON Free Heap: %d", freeHeap);
     // client.publish(topic_out, myChar);
-    char buffer[10]; // Буфер для хранения строки
+    char buffer[10]; // Buffer for storing a string
     sprintf(buffer, "%d", freeHeap);
     client.publish(topic_heap, buffer);
     // free((void *)myChar);
@@ -1482,13 +1481,13 @@ void loop() //*************************************************** LOOP *********
     // char myChar[25];
     // snprintf(myChar, sizeof(myChar), "OFF Free Heap: %d", freeHeap);
     // client.publish(topic_out, myChar);
-    char buffer[10]; // Буфер для хранения строки
+    char buffer[10]; // Buffer for storing a string
     sprintf(buffer, "%d", freeHeap);
     client.publish(topic_heap, buffer);
   }
 
   //----------------------------------------------------------
-  if (PowerOnFast) // режим нарастания громкости
+  if (PowerOnFast) // volume ramp-up mode
   {
     currentMillis1 = millis();
 
@@ -1498,18 +1497,18 @@ void loop() //*************************************************** LOOP *********
 
       if (vol < targetVol)
       {
-        vol += step;          // увеличиваем vol на шаг, если не достигли цели
-        audio.setVolume(vol); // устанавливаем новое значение громкости
+        vol += step;          // increase vol by step if target not reached
+        audio.setVolume(vol); // set new volume level
 
-        itoa(vol, buffer, 10); // Преобразование значения int в строку
+        itoa(vol, buffer, 10); // Convert int value to string
         client.publish(topic_volume, buffer);
       }
       else
         PowerOnFast = 0;
     }
   }
-  //------------------------------------------------------------ КНОПКИ -------------------
-  if (b0.click()) // нажали POWER
+  //------------------------------------------------------------ BUTTONS -------------------
+  if (b0.click()) // pressed POWER
   {
     button_Power();
   }
@@ -1524,17 +1523,17 @@ void loop() //*************************************************** LOOP *********
   {
     if ((b3.click()))
     {
-      NEWStation--; // станция назад
+      NEWStation--; // station back
       if (NEWStation < 0)
         NEWStation = sizeof(listStation) / sizeof(listStation[0]) - 1; //
     }
     if ((b2.click()))
     {
-      NEWStation++; // станция вперед
+      NEWStation++; // station forward
       if (NEWStation > sizeof(listStation) / sizeof(listStation[0]) - 1)
-        NEWStation = 0; // станция 0
+        NEWStation = 0; // station 0
     }
-    // Если мы выбрали новую станцию
+    // If we have selected a new station
     if (NEWStation != OLDStation)
     {
       NameStation = " ";
@@ -1549,11 +1548,11 @@ void loop() //*************************************************** LOOP *********
 
       UpdateScreen();
 
-      audio.connecttohost(listStation[NEWStation]); // переключаем станцию
+      audio.connecttohost(listStation[NEWStation]); // switch station
 
       // Serial.println(NEWStation);
 
-      OLDStation = NEWStation; // действие должно выполниться только один раз
+      OLDStation = NEWStation; // the action should be performed only once
     }
 
     if (RequestFail && CounterFail < 10)
@@ -1561,37 +1560,37 @@ void loop() //*************************************************** LOOP *********
       CounterFail++;
       Serial.print("Reconnect #");
       Serial.println(CounterFail);
-      audio.connecttohost(listStation[NEWStation]); // переключаем станцию
+      audio.connecttohost(listStation[NEWStation]); // switch station
       delay(100);
       previousMillis2 = millis();
     }
     else if (CounterFail >= 10)
     {
-      ReconnectLater = 1; // переподключить через минуту
+      ReconnectLater = 1; // reconnect in a minute
     }
 
     audio.loop();
   }
-  else // питания выключено
+  else // power is off
   {
-    bot.tick(); // тикаем в луп
+    bot.tick(); // tick in the loop
   }
 
   // ------------------------------------------------
   if (StatusSleep)
   {
-    PowerOnFast = 0;                        // выключение быстрого увеличения громкости
-    unsigned long currentMillis = millis(); // получаем текущее значение millis()
+    PowerOnFast = 0;                        // disable fast volume increase
+    unsigned long currentMillis = millis(); // get the current millis() value
 
     if (currentMillis - previousMillis >= interval)
     {
-      // ваш код, который должен выполняться каждую секунду
-      previousMillis = currentMillis; // обновляем значение previousMillis
+      // your code that should run every second
+      previousMillis = currentMillis; // update the previousMillis value
 
       vol--;
       audio.setVolume(vol);
 
-      itoa(vol, buffer, 10); // Преобразование значения int в строку
+      itoa(vol, buffer, 10); // Convert int value to string
       client.publish(topic_volume, buffer);
 
       UpdateScreen();
@@ -1601,7 +1600,7 @@ void loop() //*************************************************** LOOP *********
         StatusSleep = 0;
         StatusPower = 0;
 
-        digitalWrite(LED_BLUE, LOW); // выкл LED
+        digitalWrite(LED_BLUE, LOW); // turn off LED
         u8g2.setFont(u8g2_font_9x18B_tr);
         u8g2.clearBuffer();
         u8g2.setCursor(25, 32);
@@ -1639,10 +1638,10 @@ void audio_info(const char *info)
   if (strncmp(info, "BitRate", 7) == 0)
   {
     int length = strlen(info);      // BitRate: 128000
-    char selectedChars[14 - 9 + 2]; // выделяем память для выбранных символов
+    char selectedChars[14 - 9 + 2]; // allocate memory for selected characters
 
     strncpy(selectedChars, info + 9, 14 - 9 + 1);
-    selectedChars[14 - 9 + 1] = '\0'; // добавляем завершающий нулевой символ
+    selectedChars[14 - 9 + 1] = '\0'; // add a null terminator
     Bitrate = atoi(selectedChars);
   }
 
@@ -1678,16 +1677,16 @@ void audio_info(const char *info)
 
     if (startIndex != -1)
     {
-      startIndex += searchString.length();           // Переход к началу формата
-      int endIndex = input.indexOf(' ', startIndex); // Поиск пробела после формата
+      startIndex += searchString.length();           // Go to the beginning of the format
+      int endIndex = input.indexOf(' ', startIndex); // Search for a space after the format
 
-      // Если пробел не найден, берем до конца строки
+      // If space is not found, take until the end of the string
       if (endIndex == -1)
       {
         endIndex = input.length();
       }
 
-      format = input.substring(startIndex, endIndex); // Возвращаем найденный формат
+      format = input.substring(startIndex, endIndex); // Return the found format
     }
     else
       format = ""; // Возвращаем пустую строку, если формат не найден
@@ -1718,16 +1717,16 @@ void audio_info(const char *info)
 
     if (startIndex != -1)
     {
-      startIndex += searchString.length();           // Переход к началу формата
-      int endIndex = input.indexOf(' ', startIndex); // Поиск пробела после формата
+      startIndex += searchString.length();           // Go to the beginning of the format
+      int endIndex = input.indexOf(' ', startIndex); // Search for a space after the format
 
-      // Если пробел не найден, берем до конца строки
+      // If space is not found, take until the end of the string
       if (endIndex == -1)
       {
         endIndex = input.length();
       }
 
-      channels = input.substring(startIndex, endIndex); // Возвращаем найденный формат
+      channels = input.substring(startIndex, endIndex); // Return the found format
     }
     else
       channels = ""; // Возвращаем пустую строку, если формат не найден
@@ -1741,16 +1740,16 @@ void audio_info(const char *info)
 
     if (startIndex != -1)
     {
-      startIndex += searchString.length();           // Переход к началу формата
-      int endIndex = input.indexOf(' ', startIndex); // Поиск пробела после формата
+      startIndex += searchString.length();           // Go to the beginning of the format
+      int endIndex = input.indexOf(' ', startIndex); // Search for a space after the format
 
-      // Если пробел не найден, берем до конца строки
+      // If space is not found, take until the end of the string
       if (endIndex == -1)
       {
         endIndex = input.length();
       }
 
-      SampleRate = input.substring(startIndex, endIndex); // Возвращаем найденный формат
+      SampleRate = input.substring(startIndex, endIndex); // Return the found format
     }
     else
       SampleRate = ""; // Возвращаем пустую строку, если формат не найден
@@ -1764,16 +1763,16 @@ void audio_info(const char *info)
 
     if (startIndex != -1)
     {
-      startIndex += searchString.length();           // Переход к началу формата
-      int endIndex = input.indexOf(' ', startIndex); // Поиск пробела после формата
+      startIndex += searchString.length();           // Go to the beginning of the format
+      int endIndex = input.indexOf(' ', startIndex); // Search for a space after the format
 
-      // Если пробел не найден, берем до конца строки
+      // If space is not found, take until the end of the string
       if (endIndex == -1)
       {
         endIndex = input.length();
       }
 
-      BitsPerSample = input.substring(startIndex, endIndex); // Возвращаем найденный формат
+      BitsPerSample = input.substring(startIndex, endIndex); // Return the found format
     }
     else
       BitsPerSample = ""; // Возвращаем пустую строку, если формат не найден
@@ -1792,16 +1791,16 @@ void audio_info(const char *info)
 
     if (startIndex != -1)
     {
-      startIndex += searchString.length();           // Переход к началу формата
-      int endIndex = input.indexOf(' ', startIndex); // Поиск пробела после формата
+      startIndex += searchString.length();           // Go to the beginning of the format
+      int endIndex = input.indexOf(' ', startIndex); // Search for a space after the format
 
-      // Если пробел не найден, берем до конца строки
+      // If space is not found, take until the end of the string
       if (endIndex == -1)
       {
         endIndex = input.length();
       }
 
-      Bitrate1 = input.substring(startIndex, endIndex); // Возвращаем найденный формат
+      Bitrate1 = input.substring(startIndex, endIndex); // Return the found format
     }
     else
       Bitrate1 = ""; // Возвращаем пустую строку, если формат не найден
@@ -1856,7 +1855,7 @@ void audio_showstation(const char *info)
   if (strlen(info))
   {
     // client.publish(topic_out, info);
-    //  Форматируем строку и сохраняем результат в буфер
+    //  Format the string and save the result to the buffer
     snprintf(buffer1, sizeof(buffer1), "%d %s", Channel + 1, info);
     client.publish(topic_station, buffer1);
   }
@@ -1946,7 +1945,7 @@ void printDigits1(int digits)
 void PowerON_1()
 {
   Serial.println("Alarm PowerOn1");
-  if (StatusPower == 0) // если выключен то плавно включаем по будильнику
+  if (StatusPower == 0) // if off, then smoothly turn on by alarm
   {
     Serial.println("Alarm!");
 
@@ -1960,9 +1959,9 @@ void PowerON_1()
     digitalWrite(RELAY1, HIGH);
     digitalWrite(RELAY2, HIGH);
 #endif
-    // digitalWrite(FMTX, HIGH); // вкл питание FMTX
+    // digitalWrite(FMTX, HIGH); // turn on FMTX power
 
-    digitalWrite(LED_BLUE, HIGH); // вкл LED
+    digitalWrite(LED_BLUE, HIGH); // turn on LED
 
     u8g2.setFont(u8g2_font_9x18B_tr);
     u8g2.clearBuffer();
@@ -1972,11 +1971,11 @@ void PowerON_1()
 
     vol = 0;
     audio.setVolume(vol);                         // 0...21
-    audio.connecttohost(listStation[NEWStation]); // переключаем станцию
+    audio.connecttohost(listStation[NEWStation]); // switch station
     delay(2000);
 
-    interval1 = 1000 * 10; // шаг по времени для увеличения громкости в мс
-    PowerOnFast = 1;       // запуск быстрого увеличения громкости
+    interval1 = 1000 * 10; // time step for volume increase in ms
+    PowerOnFast = 1;       // start fast volume increase
     previousMillis1 = millis();
 
     UpdateScreen();
@@ -1989,7 +1988,7 @@ void PowerOFF_1() //
   if (StatusSleep == 0)
   {
     StatusSleep = 1;
-    previousMillis = millis(); // запоминаем время
+    previousMillis = millis(); // remember the time
 
     UpdateScreen();
   }
@@ -1997,9 +1996,9 @@ void PowerOFF_1() //
 
 void init_telegram(void)
 {
-  bot.setChatID("");  // передай "" (пустую строку) чтобы отключить проверку
-  bot.skipUpdates();  // пропустить непрочитанные сообщения
-  bot.attach(newMsg); // обработчик новых сообщений
+  bot.setChatID("");  // pass "" (empty string) to disable check
+  bot.skipUpdates();  // skip unread messages
+  bot.attach(newMsg); // new message handler
 
   bot.sendMessage("WebRadio_bot Restart OK", ADMIN_CHAT_ID);
   Serial.println("Message to telegram was sended");
@@ -2009,7 +2008,7 @@ void init_telegram(void)
   bot.sendMessage(timeClient.getFormattedTime(), ADMIN_CHAT_ID);
 }
 
-// обработчик сообщений
+// message handler
 void newMsg(FB_msg &msg)
 {
   String chat_id = msg.chatID;
@@ -2021,7 +2020,7 @@ void newMsg(FB_msg &msg)
 
   bot.notify(false);
 
-  // выводим всю информацию о сообщении
+  // output all information about the message
   Serial.println(msg.toString());
   FB_Time t(msg.unix, 5);
   Serial.print(t.timeString());
@@ -2037,7 +2036,7 @@ void newMsg(FB_msg &msg)
       restart = 1;
     }
 
-    // обновление прошивки по воздуху из чата Telegram
+    // firmware update over the air from Telegram chat
     if (msg.OTA && msg.chatID == ADMIN_CHAT_ID)
     {
       Serial.println("Update");
@@ -2064,7 +2063,7 @@ void newMsg(FB_msg &msg)
       long rssi = WiFi.RSSI();
       int gasLevelPercent = 0; // map(gasLevel, GasLevelOffset, 1024, 0, 100);
 
-      String time = "pong! Сообщение принято в ";
+      String time = "pong! Message received at ";
       time += t.timeString();
       time += ". Uptime: ";
       time += days;
@@ -2093,7 +2092,7 @@ void newMsg(FB_msg &msg)
     {
       // strip.setPixelColor(7, strip.Color(100, 100, 0));
       // strip.show();
-      bot.showMenuText("Команды:", "\ping \t \restart", chat_id, false);
+      bot.showMenuText("Commands:", "\ping \t \restart", chat_id, false);
       delay(300);
       // strip.setPixelColor(7, strip.Color(0, 0, 0));
       // strip.show();
