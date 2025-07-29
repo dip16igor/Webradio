@@ -1,0 +1,9 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*.class
+
+# Virtual environment
+# Игнорировать любые папки, содержащие "venv" или "env"
+*venv*/
+*env*/
