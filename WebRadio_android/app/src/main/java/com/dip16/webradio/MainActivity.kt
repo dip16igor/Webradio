@@ -79,7 +79,7 @@ import com.dip16.webradio.ui.theme.Purple80
 
 //import androidx.datastore.preferences.preferencesDataStore
 
-private var radioName = "WebRadio2" // 1 - Челябинск. 2 - Куса
+private var radioName = "WebRadio2" // 1 - Chelyabinsk. 2 - Kusa
 private val alarms = listOf("5:00", "5:30", "6:00", "6:30", "7:00", "Alarm OFF")
 //private val work_mode = listOf("Kusa", "Chel", "Online")
 private val work_mode = listOf("Kusa", "Chel")
@@ -94,8 +94,8 @@ class MainActivity : ComponentActivity() {
     private val volume = mutableStateOf("")
     private val logText = mutableStateOf("")
     private val connectionState = mutableStateOf("")
-    private val selectedIndex = mutableStateOf<Int?>(null) // Инициализация с null
-    private val selectedIndex2 = mutableStateOf<Int?>(null) // Инициализация с null
+    private val selectedIndex = mutableStateOf<Int?>(null) // Initialization with null
+    private val selectedIndex2 = mutableStateOf<Int?>(null) // Initialization with null
 
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -108,7 +108,7 @@ class MainActivity : ComponentActivity() {
                 val radioMode = remember { mutableIntStateOf(0) }
 
                 LaunchedEffect(key1 = true) {
-                    Log.i("dip17", "Читаю настройки из памяти..")
+                    Log.i("dip17", "Reading settings from memory..")
                     //val dataStoreManager = DataStoreManager(applicationContext)
                     dataStoreManager.getSettings().collect { settings ->
                         bgColorState.value = settings.bgColor.toULong()
@@ -135,7 +135,7 @@ class MainActivity : ComponentActivity() {
         super.onStart()
         Log.d("dip171", "onStart()")
         CoroutineScope(Dispatchers.IO).launch {
-            // Подключение к MQTT и подписка на топик
+            // Connecting to MQTT and subscribing to the topic
             connectToMQTT()
         }
     }
@@ -154,7 +154,7 @@ class MainActivity : ComponentActivity() {
     override fun onStop() {
         super.onStop()
         Log.d("dip171", "onStop()")
-        // Отключение от MQTT
+        // Disconnecting from MQTT
         disconnectFromMQTT()
     }
 
@@ -179,7 +179,7 @@ class MainActivity : ComponentActivity() {
                 userName = Secrets.MQTT_LOGIN
                 password = Secrets.MQTT_PASSWORD.toCharArray()
                 isCleanSession = true
-                isAutomaticReconnect = false // включаем автоматическое переподключение
+                isAutomaticReconnect = false // enable automatic reconnection
                 maxReconnectDelay = 2000
             }
             client.setCallback(object : MqttCallbackExtended {
@@ -204,14 +204,14 @@ class MainActivity : ComponentActivity() {
                     connectionState.value = "Request delivered"
                     Log.d("dip171", "deliveryComplete. Token : $token")
 
-                    // Создаем Handler, привязанный к основному потоку
+                    // Create a Handler bound to the main thread
                     val handler = Handler(Looper.getMainLooper())
 
-                    // Запускаем Runnable через 3 секунды
+                    // Start a Runnable after 3 seconds
                     handler.postDelayed({
                         connectionState.value = ""
                         //Log.d("dip171", "connectionState cleared after 3 seconds")
-                    }, 3000) // 3000 миллисекунд = 3 секунды
+                    }, 3000) // 3000 milliseconds = 3 seconds
                 }
             })
 
@@ -339,10 +339,10 @@ class MainActivity : ComponentActivity() {
         var expanded2 by remember { mutableStateOf(false) }
         val context = LocalContext.current
 
-        val cellsCount = 2 // Количество кнопок в строке
+        val cellsCount = 2 // Number of buttons in a row
         val iconColor = getIconColor(selectedIndex.value)
 
-        val coroutine = rememberCoroutineScope() // корутина для сохранения настроек в память
+        val coroutine = rememberCoroutineScope() // coroutine for saving settings to memory
 
         //Log.i("dip17", "radioMode: ${radioMode.value}")
 
@@ -414,12 +414,12 @@ class MainActivity : ComponentActivity() {
             }
         }
 
-        // Запуск LaunchedEffect для обработки изменений selectedIndex
+        // Start LaunchedEffect to handle selectedIndex changes
         LaunchedEffect(selectedIndex.value) {
             handleSelectedIndexChange(selectedIndex.value, alarms, coroutineScope)
         }
 
-        // Запуск LaunchedEffect для обработки изменений selectedIndex2
+        // Start LaunchedEffect to handle selectedIndex2 changes
         LaunchedEffect(selectedIndex2.value) {
             handleSelectedIndexChange2(selectedIndex2.value, coroutineScope)
             saveSettings(selectedIndex2.value, dataStoreManager)
@@ -435,7 +435,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private suspend fun saveSettings(selectedIndex: Int?, dataStoreManager: DataStoreManager) {
-        Log.i("dip17", "Сохраняю настройки в память..")
+        Log.i("dip17", "Saving settings to memory..")
         selectedIndex?.let {
             val settingsData = SettingsData(it, Purple80.value.toLong())
             dataStoreManager.saveSetting(settingsData)
@@ -481,7 +481,7 @@ class MainActivity : ComponentActivity() {
             label = { Text(label) },
             trailingIcon = {
                 IconButton(onClick = onExpand) {
-                    Icon(Icons.Filled.Notifications, contentDescription = "Меню", tint = iconColor)
+                    Icon(Icons.Filled.Notifications, contentDescription = "Menu", tint = iconColor)
                 }
             },
             enabled = false,
@@ -606,7 +606,7 @@ class MainActivity : ComponentActivity() {
                 IconButton(onClick = onExpand) {
                     Icon(
                         Icons.Filled.MoreVert,
-                        contentDescription = "Меню",
+                        contentDescription = "Menu",
                         tint = MaterialTheme.colorScheme.primary
                     )
                 }
@@ -699,7 +699,7 @@ class MainActivity : ComponentActivity() {
                     }
                     //client.publish("Home/$radioName/Action", message)
                 } catch (e: MqttException) {
-                    Log.e("MQTTError", "Ошибка связи с брокером: ${e.message}")
+                    Log.e("MQTTError", "Broker communication error: ${e.message}")
                 }
             }
         }
@@ -726,7 +726,7 @@ class MainActivity : ComponentActivity() {
 //                try {
 //                    sendMessage("?")
 //                } catch (e: MqttException) {
-//                    Log.e("dip17", "Ошибка связи с брокером: ${e.message}")
+//                    Log.e("dip17", "Broker communication error: ${e.message}")
 //                }
             }
         }
@@ -736,9 +736,9 @@ class MainActivity : ComponentActivity() {
     @Composable
     fun getIconColor(selectedIndex: Int?): Color {
         return when {
-            selectedIndex == null -> MaterialTheme.colorScheme.background // Цвет по умолчанию
-            selectedIndex != alarms.lastIndex -> MaterialTheme.colorScheme.primary // Цвет для выбранного индекса
-            else -> Color.Gray // Цвет по умолчанию
+            selectedIndex == null -> MaterialTheme.colorScheme.background // Default color
+            selectedIndex != alarms.lastIndex -> MaterialTheme.colorScheme.primary // Color for the selected index
+            else -> Color.Gray // Default color
         }
     }
 
@@ -757,9 +757,9 @@ class MainActivity : ComponentActivity() {
     ) {
         val context = LocalContext.current
         val coroutineScope = rememberCoroutineScope()
-        val isPressed = remember { mutableStateOf(false) } // Состояние для отслеживания нажатия
+        val isPressed = remember { mutableStateOf(false) } // State for tracking press
         //
-        val buttonColors = when (buttonData.genre) { // todo перенести цвета в тему
+        val buttonColors = when (buttonData.genre) { // todo move colors to theme
             "rock" -> ButtonDefaults.buttonColors(containerColor = Color(200, 50, 20))
             "jazz" -> ButtonDefaults.buttonColors(containerColor = Color(0, 100, 50))
             "radio" -> ButtonDefaults.buttonColors(containerColor = Color(0, 100, 200))
@@ -776,19 +776,19 @@ class MainActivity : ComponentActivity() {
                     150,
                     140
                 )
-            ) // Цвет по умолчанию
+            ) // Default color
         }
 
         Button(
             onClick = {
-                isPressed.value = true // Устанавливаем состояние нажатия
+                isPressed.value = true // Set the pressed state
                 CoroutineScope(Dispatchers.IO).launch {
                     val mediaPlayer = MediaPlayer.create(context, R.raw.button1)
-                    // Установка громкости на 50% для обоих каналов
+                    // Set volume to 50% for both channels
                     mediaPlayer.setVolume(0.2f, 0.2f)
                     mediaPlayer.start()
                 }
-                coroutineScope.launch(Dispatchers.IO) { // Запуск в фоновом потоке
+                coroutineScope.launch(Dispatchers.IO) { // Launch in a background thread
                     try {
                         //Log.d("dip17", "MQTTButton click start")
                         if (state.value == "Power OFF") {
@@ -807,19 +807,19 @@ class MainActivity : ComponentActivity() {
 
                         //Log.d("dip17", "MQTTButton click finish")
                     } catch (e: MqttException) {
-                        // Обработка ошибки подключения или публикации
-                        Log.e("dip17", "Ошибка связи с брокером: ${e.message}")
-                        // Здесь можно добавить код для отображения уведомления пользователю
+                        // Handle connection or publication error
+                        Log.e("dip17", "Broker communication error: ${e.message}")
+                        // You can add code here to display a notification to the user
                     }
                 }
             },
             modifier = Modifier
-                //.longClickGestureFilter(onLongClick = { /* обработчик длительного нажатия */ })
+                //.longClickGestureFilter(onLongClick = { /* long press handler */ })
                 .fillMaxWidth(),
             //.background(if(isPressed.value)Color.Green.copy(alpha = 0.5f) else Color.Transparent),
             shape = RoundedCornerShape(8.dp),
-            colors = buttonColors, // Использование определенного выше цвета кнопки
-            contentPadding = PaddingValues(8.dp) // Установка внутренних отступов кнопки
+            colors = buttonColors, // Use the button color defined above
+            contentPadding = PaddingValues(8.dp) // Set button's internal padding
         ) {
             Box(
                 modifier = Modifier
@@ -833,7 +833,7 @@ class MainActivity : ComponentActivity() {
                     style = TextStyle(
                         color = Color.White,
                         fontSize = 16.sp,
-                        fontWeight = FontWeight.Bold // Установка жирного шрифта
+                        fontWeight = FontWeight.Bold // Set bold font
                     )
                 )
             }
