@@ -79,11 +79,6 @@ import com.dip16.webradio.ui.theme.Purple80
 
 //import androidx.datastore.preferences.preferencesDataStore
 
-
-//private const val mqttBrokerUrl: String = "tcp://v.66p.su:1883"
-private const val mqttBrokerUrl: String = "tcp://46.8.233.146:1883"
-private const val mqttLogin: String = "dip16"
-private const val mqttPassword: String = "nirvana7"
 private var radioName = "WebRadio2" // 1 - Челябинск. 2 - Куса
 private val alarms = listOf("5:00", "5:30", "6:00", "6:30", "7:00", "Alarm OFF")
 //private val work_mode = listOf("Kusa", "Chel", "Online")
@@ -173,7 +168,7 @@ class MainActivity : ComponentActivity() {
     private fun connectToMQTT() {
         val persistence = MemoryPersistence()
         val mqttClientId = MqttClient.generateClientId()
-        client = MqttClient(mqttBrokerUrl, mqttClientId, persistence)
+        client = MqttClient(Secrets.MQTT_BROKER_URL, mqttClientId, persistence)
         Log.d("dip17", "try to connect to MQTT broker")
         Log.d("dip17", "my ID is $mqttClientId")
 
@@ -181,8 +176,8 @@ class MainActivity : ComponentActivity() {
 
         try {
             val options = MqttConnectOptions().apply {
-                userName = mqttLogin
-                password = mqttPassword.toCharArray()
+                userName = Secrets.MQTT_LOGIN
+                password = Secrets.MQTT_PASSWORD.toCharArray()
                 isCleanSession = true
                 isAutomaticReconnect = false // включаем автоматическое переподключение
                 maxReconnectDelay = 2000
@@ -190,13 +185,13 @@ class MainActivity : ComponentActivity() {
             client.setCallback(object : MqttCallbackExtended {
                 override fun connectComplete(reconnect: Boolean, serverURI: String) {
                     connectionState.value = "Connection OK"
-                    Log.d("dip171", "connectComplete to $mqttBrokerUrl")
+                    Log.d("dip171", "connectComplete to ${Secrets.MQTT_BROKER_URL}")
                     if (reconnect) subscribeToTopics()
                 }
 
                 override fun connectionLost(cause: Throwable?) {
                     connectionState.value = "Connection LOST.."
-                    Log.e("dip171", "Connection lost to $mqttBrokerUrl  $cause")
+                    Log.e("dip171", "Connection lost to ${Secrets.MQTT_BROKER_URL}  $cause")
 
                     connectToMQTT()
                 }
@@ -236,7 +231,7 @@ class MainActivity : ComponentActivity() {
             }
 
         } catch (e: MqttException) {
-            Log.e("dip171", "Fail connect to $mqttBrokerUrl !\n $e")
+            Log.e("dip171", "Fail connect to ${Secrets.MQTT_BROKER_URL} !\n $e")
             e.printStackTrace()
 
             connectionState.value = "Connection Failed!"
