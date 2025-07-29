@@ -139,7 +139,7 @@ val buttonDataList = listOf(
         "~~ Море ~~",
         "nature",
         "https://live.radiospinner.com/sslp-64"
-    ), // Используйте подходящее название
+    ), 
     ButtonData(
         "Blues N Rock",
         "rock",
