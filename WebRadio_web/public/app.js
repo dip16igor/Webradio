@@ -85,37 +85,27 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- EVENT HANDLERS ---
     powerBtn.addEventListener('click', () => {
-        postCommand('/power', { state: isPowerOn ? 'off' : 'on' });
+        postCommand('/command', { command: 'b1' });
     });
 
     volDownBtn.addEventListener('click', () => {
-        const newVolume = Math.max(0, currentVolume - 1);
-        postCommand('/volume', { volume: newVolume });
+        postCommand('/command', { command: 'vol-' });
     });
 
     volUpBtn.addEventListener('click', () => {
-        const newVolume = Math.min(21, currentVolume + 1);
-        postCommand('/volume', { volume: newVolume });
+        postCommand('/command', { command: 'vol+' });
     });
 
     chDownBtn.addEventListener('click', () => {
-        const newStation = currentStationNum <= 1 ? TOTAL_STATIONS : currentStationNum - 1;
-        postCommand('/station', { station: newStation });
+        postCommand('/command', { command: 'b4' });
     });
 
     chUpBtn.addEventListener('click', () => {
-        const newStation = currentStationNum >= TOTAL_STATIONS ? 1 : currentStationNum + 1;
-        postCommand('/station', { station: newStation });
+        postCommand('/command', { command: 'b3' });
     });
 
     sleepBtn.addEventListener('click', () => {
-        // Example: set a 15-minute sleep timer (900 seconds)
-        const sleepSeconds = 900;
-        const currentAlarm = alarmEl.textContent;
-        // If alarm is already set, turn it off. Otherwise, set it.
-        const command = (currentAlarm && currentAlarm !== 'Alarm OFF' && currentAlarm !== '0') ? 's0' : `s${sleepSeconds}`;
-        postCommand('/command', { command });
-        alert(command === 's0' ? 'Sleep timer cancelled.' : `Sleep timer set for 15 minutes.`);
+        postCommand('/command', { command: 'b2' });
     });
 
     // --- INITIALIZATION ---
