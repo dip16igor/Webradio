@@ -1,7 +1,7 @@
 document.addEventListener('DOMContentLoaded', () => {
 
     // --- CONFIGURATION ---
-    const API_BASE_PATH = '/api/radio';
+    const API_BASE_PATH = 'api/radio';
     const POLLING_INTERVAL_MS = 2000;
     const TOTAL_STATIONS = 22;
 
