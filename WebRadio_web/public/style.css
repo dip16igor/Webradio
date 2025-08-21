@@ -122,6 +122,22 @@ h2 {
     background-color: #2d3748;
 }
 
+/* Alarm Controls */
+.alarm-controls {
+    display: grid;
+    grid-template-columns: auto 1fr 1fr;
+    gap: 10px;
+    align-items: center;
+    margin-bottom: 20px;
+}
+
+.alarm-time {
+    padding: 10px;
+    font-size: 1em;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+}
+
 /* Responsive */
 @media (max-width: 600px) {
     body {

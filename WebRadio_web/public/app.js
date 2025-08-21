@@ -22,6 +22,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const chDownBtn = document.getElementById('btn-ch-down');
     const chUpBtn = document.getElementById('btn-ch-up');
     const sleepBtn = document.getElementById('btn-sleep');
+    const alarmTimeInput = document.getElementById('alarm-time');
+    const setAlarmBtn = document.getElementById('btn-set-alarm');
+    const cancelAlarmBtn = document.getElementById('btn-cancel-alarm');
 
     // --- STATE ---
     let currentVolume = 0;
@@ -116,6 +119,23 @@ document.addEventListener('DOMContentLoaded', () => {
 
     sleepBtn.addEventListener('click', () => {
         postCommand('/command', { command: 'b2' });
+    });
+
+    setAlarmBtn.addEventListener('click', () => {
+        const timeValue = alarmTimeInput.value;
+        if (timeValue) {
+            const [hours, minutes] = timeValue.split(':').map(Number);
+            const totalSeconds = hours * 3600 + minutes * 60;
+            postCommand('/command', { command: `s${totalSeconds}` });
+            alert(`Alarm set for ${timeValue}.`);
+        } else {
+            alert('Please select a time for the alarm.');
+        }
+    });
+
+    cancelAlarmBtn.addEventListener('click', () => {
+        postCommand('/command', { command: 's0' });
+        alert('Alarm cancelled.');
     });
 
     // --- INITIALIZATION ---
