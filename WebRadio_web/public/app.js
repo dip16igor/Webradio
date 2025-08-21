@@ -122,6 +122,7 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     const init = () => {
+        postCommand('/command', { command: '?' });
         createStationButtons();
         pollStatus(); // Initial fetch
         setInterval(pollStatus, POLLING_INTERVAL_MS); // Start polling
