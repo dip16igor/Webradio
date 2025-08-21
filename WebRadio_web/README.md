@@ -41,5 +41,33 @@ This is a web-based remote control for the ESP32 WebRadio project. It provides a
     node server.js
     ```
 
-4.  **Access the Web Interface**:
-    Open your web browser and navigate to `http://<your_server_ip>:3000/<your_secret_token>` to access the web interface.
+## Deployment (Linux VPS with systemd)
+
+To run the web interface as a persistent service on a Linux VPS, you can use the provided `webradio-web.service` file.
+
+1.  **Copy the service file** to the systemd directory on your VPS:
+    ```bash
+    sudo cp webradio-web.service /etc/systemd/system/
+    ```
+
+2.  **Edit the service file** to match your project's path and user. You may need to change the `User`, `Group`, and `WorkingDirectory` directives.
+
+3.  **Reload the systemd daemon** to recognize the new service:
+    ```bash
+    sudo systemctl daemon-reload
+    ```
+
+4.  **Start the service**:
+    ```bash
+    sudo systemctl start webradio-web
+    ```
+
+5.  **Enable the service to start on boot**:
+    ```bash
+    sudo systemctl enable webradio-web
+    ```
+
+6.  **Check the status of the service**:
+    ```bash
+    sudo systemctl status webradio-web
+    ```
