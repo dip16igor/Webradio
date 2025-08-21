@@ -3,7 +3,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- CONFIGURATION ---
     const API_BASE_PATH = 'api/radio';
     const POLLING_INTERVAL_MS = 2000;
-    const TOTAL_STATIONS = 22;
+    const TOTAL_STATIONS = 78;
 
     // --- DOM ELEMENTS ---
     const stateEl = document.getElementById('state');
