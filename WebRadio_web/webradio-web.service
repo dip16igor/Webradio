@@ -3,9 +3,9 @@ Description=WebRadio Web Interface
 After=network.target
 
 [Service]
-User=dip16
-Group=dip16
-WorkingDirectory=/home/dip16/apps/webradio
+User=user
+Group=user
+WorkingDirectory=/home/user/apps/webradio
 ExecStart=/usr/bin/node server.js
 Restart=always
 
