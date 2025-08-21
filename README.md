@@ -62,24 +62,26 @@ A collection of helper scripts for managing the radio station lists.
 
 The components communicate over a local network using the lightweight MQTT messaging protocol. A central MQTT broker is required to relay messages between the control interfaces (Android app, web interface) and the ESP32 radio.
 
-```
-+------------------+           +----------------+           +-----------------+
-|                  |           |                |           |                 |
-|  Android Remote  |           |                |           |   ESP32 Radio   |
-|      (App)       | <-------> |  MQTT Broker   | <-------> |    (Device)     |
-|                  |           |                |           |                 |
-+------------------+           |(e.g., Mosquitto)|           +-----------------+
-        ^                      |                |                      ^
-        |                      +----------------+                      |
-        |                                                              |
-        +--------------------------------------------------------------+
-        |
-+------------------+
-|                  |
-|  Web Interface   |
-|     (Browser)    |
-|                  |
-+------------------+
+```mermaid
+graph TD
+    subgraph "User Interfaces"
+        A[Android App]
+        B[Web Browser]
+    end
+
+    subgraph "Backend"
+        C[Web Server]
+        D[MQTT Broker]
+    end
+
+    subgraph "Hardware"
+        E[ESP32 Radio]
+    end
+
+    A <-.->|MQTT| D
+    B <-.->|HTTP| C
+    C <-.->|MQTT| D
+    E <-.->|MQTT| D
 ```
 
 - The **Android App** and **Web Interface** publish commands (e.g., change station, volume up) to specific MQTT topics.
