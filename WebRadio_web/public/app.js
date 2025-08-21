@@ -128,7 +128,8 @@ document.addEventListener('DOMContentLoaded', () => {
             const totalSeconds = hours * 3600 + minutes * 60;
             await postCommand('/command', { command: `s${totalSeconds}` });
             alert(`Alarm set for ${timeValue}.`);
-            pollStatus();
+            // Request status update immediately
+            setTimeout(() => postCommand('/command', { command: '?' }), 200);
         } else {
             alert('Please select a time for the alarm.');
         }
@@ -137,7 +138,8 @@ document.addEventListener('DOMContentLoaded', () => {
     cancelAlarmBtn.addEventListener('click', async () => {
         await postCommand('/command', { command: 's0' });
         alert('Alarm cancelled.');
-        pollStatus();
+        // Request status update immediately
+        setTimeout(() => postCommand('/command', { command: '?' }), 200);
     });
 
     // --- INITIALIZATION ---
