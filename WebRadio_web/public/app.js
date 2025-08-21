@@ -149,7 +149,7 @@ document.addEventListener('DOMContentLoaded', () => {
             btn.className = 'btn';
             btn.textContent = i;
             btn.addEventListener('click', () => {
-                postCommand('/station', { station: i });
+                postCommand('/command', { command: `c${i}` });
             });
             stationGrid.appendChild(btn);
         }
