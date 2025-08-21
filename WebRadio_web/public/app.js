@@ -66,7 +66,17 @@ document.addEventListener('DOMContentLoaded', () => {
         stationEl.textContent = data.Station || 'N/A';
         volumeEl.textContent = data.Volume || 'N/A';
         titleEl.textContent = data.Title || 'N/A';
-        alarmEl.textContent = data.Alarm || 'N/A';
+        const alarmValue = data.Alarm;
+        if (alarmValue && !isNaN(alarmValue) && parseInt(alarmValue, 10) > 0) {
+            const totalSeconds = parseInt(alarmValue, 10);
+            const hours = Math.floor(totalSeconds / 3600);
+            const minutes = Math.floor((totalSeconds % 3600) / 60);
+            const formattedHours = String(hours).padStart(2, '0');
+            const formattedMinutes = String(minutes).padStart(2, '0');
+            alarmEl.textContent = `${formattedHours}:${formattedMinutes}`;
+        } else {
+            alarmEl.textContent = alarmValue || 'N/A';
+        }
         logEl.textContent = data.Log || 'N/A';
 
         // Store current state for controls
