@@ -121,21 +121,23 @@ document.addEventListener('DOMContentLoaded', () => {
         postCommand('/command', { command: 'b2' });
     });
 
-    setAlarmBtn.addEventListener('click', () => {
+    setAlarmBtn.addEventListener('click', async () => {
         const timeValue = alarmTimeInput.value;
         if (timeValue) {
             const [hours, minutes] = timeValue.split(':').map(Number);
             const totalSeconds = hours * 3600 + minutes * 60;
-            postCommand('/command', { command: `s${totalSeconds}` });
+            await postCommand('/command', { command: `s${totalSeconds}` });
             alert(`Alarm set for ${timeValue}.`);
+            pollStatus();
         } else {
             alert('Please select a time for the alarm.');
         }
     });
 
-    cancelAlarmBtn.addEventListener('click', () => {
-        postCommand('/command', { command: 's0' });
+    cancelAlarmBtn.addEventListener('click', async () => {
+        await postCommand('/command', { command: 's0' });
         alert('Alarm cancelled.');
+        pollStatus();
     });
 
     // --- INITIALIZATION ---
