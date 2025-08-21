@@ -3,7 +3,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- CONFIGURATION ---
     const API_BASE_PATH = 'api/radio';
     const POLLING_INTERVAL_MS = 2000;
-    const TOTAL_STATIONS = 82; // Updated station count
+    const TOTAL_STATIONS = 78;
 
     const stationData = [
         { name: "Silver Rain", genre: "radio" },
@@ -81,9 +81,7 @@ document.addEventListener('DOMContentLoaded', () => {
         { name: "Mixdance Relax", genre: "relax" },
         { name: "Relax Cafe", genre: "relax" },
         { name: "Sleep Kids", genre: "relax" },
-        { name: "WebRadio0007", genre: "relax" },
-        { name: "YOGA", genre: "relax" },
-        { name: "dip16", genre: "rock" }
+        { name: "WebRadio0007", genre: "relax" }
     ];
 
     // --- DOM ELEMENTS ---
@@ -246,6 +244,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- INITIALIZATION ---
     const createStationButtons = () => {
+        // Clear existing buttons first
+        stationGrid.innerHTML = '';
         for (let i = 1; i <= TOTAL_STATIONS; i++) {
             const btn = document.createElement('button');
             btn.className = 'btn';
