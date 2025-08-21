@@ -61,6 +61,8 @@ h2 {
     padding: 5px;
     background-color: #f9f9f9;
     border-radius: 4px;
+    display: flex;
+    align-items: center;
 }
 
 .info-grid .info-log {
@@ -136,6 +138,26 @@ h2 {
     font-size: 1em;
     border: 1px solid #ccc;
     border-radius: 6px;
+}
+
+/* Volume Icon */
+#volume-icon {
+    margin-left: 10px;
+    display: inline-flex;
+    align-items: flex-end;
+    height: 16px;
+}
+
+.volume-bar {
+    width: 4px;
+    background-color: #e0e0e0;
+    margin-right: 2px;
+    display: inline-block;
+    transition: height 0.2s ease, background-color 0.2s ease;
+}
+
+.volume-bar.active {
+    background-color: #38a169;
 }
 
 /* Responsive */

@@ -3,7 +3,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- CONFIGURATION ---
     const API_BASE_PATH = 'api/radio';
     const POLLING_INTERVAL_MS = 2000;
-    const TOTAL_STATIONS = 78; // Updated station count
+    const TOTAL_STATIONS = 82; // Updated station count
 
     const stationData = [
         { name: "Silver Rain", genre: "radio" },
@@ -90,6 +90,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const stateEl = document.getElementById('state');
     const stationEl = document.getElementById('station');
     const volumeEl = document.getElementById('volume');
+    const volumeIconEl = document.getElementById('volume-icon');
     const titleEl = document.getElementById('title');
     const alarmEl = document.getElementById('alarm');
     const logEl = document.getElementById('log');
@@ -137,6 +138,24 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     // --- UI UPDATE ---
+    const updateVolumeIcon = (volume) => {
+        const numBars = 7;
+        const volumeLevel = parseInt(volume, 10);
+        if (isNaN(volumeLevel)) {
+            volumeIconEl.innerHTML = '';
+            return;
+        }
+
+        const activeBars = Math.ceil((volumeLevel / 21) * numBars);
+        let iconHTML = '';
+        for (let i = 0; i < numBars; i++) {
+            const barHeight = 4 + (i * 2);
+            const activeClass = i < activeBars ? 'active' : '';
+            iconHTML += `<span class="volume-bar ${activeClass}" style="height: ${barHeight}px;"></span>`;
+        }
+        volumeIconEl.innerHTML = iconHTML;
+    };
+
     const updateStatusUI = (data) => {
         isPowerOn = data.State?.includes('Power ON');
 
@@ -150,6 +169,8 @@ document.addEventListener('DOMContentLoaded', () => {
         stationEl.textContent = data.Station || 'N/A';
         volumeEl.textContent = data.Volume || 'N/A';
         titleEl.textContent = data.Title || 'N/A';
+        updateVolumeIcon(data.Volume);
+
         const alarmValue = data.Alarm;
         if (alarmValue && !isNaN(alarmValue) && parseInt(alarmValue, 10) > 0) {
             const totalSeconds = parseInt(alarmValue, 10);
