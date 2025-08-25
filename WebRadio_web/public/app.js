@@ -4,6 +4,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const API_BASE_PATH = 'api/radio';
     const POLLING_INTERVAL_MS = 2000;
     const TOTAL_STATIONS = 78;
+    const STATION_ITEM_HEIGHT = 50; // Corresponds to station-item height in CSS
 
     const stationData = [
         { name: "Silver Rain", genre: "radio" },
@@ -93,7 +94,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const alarmEl = document.getElementById('alarm');
     const logEl = document.getElementById('log');
     const statusContainer = document.getElementById('status-container');
-    const stationGrid = document.getElementById('station-grid');
+    
+    // New Station Selector Elements
+    const stationSelector = document.getElementById('station-selector');
+    const stationWheel = document.getElementById('station-wheel');
+    const playSelectedBtn = document.getElementById('btn-play-selected');
 
     // Control Buttons
     const powerBtn = document.getElementById('btn-power');
@@ -110,6 +115,8 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentVolume = 0;
     let currentStationNum = 1;
     let isPowerOn = false;
+    let selectedStationId = 1;
+    let scrollTimeout;
 
     // --- API HELPERS ---
     const apiRequest = async (endpoint, options = {}) => {
@@ -186,6 +193,14 @@ document.addEventListener('DOMContentLoaded', () => {
         currentVolume = parseInt(data.Volume, 10) || 0;
         const stationMatch = (data.Station || '').match(/^(\d+)/);
         currentStationNum = stationMatch ? parseInt(stationMatch[1], 10) : 1;
+        
+        // Sync wheel with current station from device
+        if (stationSelector.dataset.lastSyncedStation !== String(currentStationNum)) {
+            const targetScrollTop = (currentStationNum - 1) * STATION_ITEM_HEIGHT;
+            stationSelector.scrollTop = targetScrollTop;
+            stationSelector.dataset.lastSyncedStation = String(currentStationNum);
+            updateSelectedStation(false); // Update visuals without snapping
+        }
     };
 
     // --- POLLING ---
@@ -228,7 +243,6 @@ document.addEventListener('DOMContentLoaded', () => {
             const totalSeconds = hours * 3600 + minutes * 60;
             await postCommand('/command', { command: `s${totalSeconds}` });
             alert(`Alarm set for ${timeValue}.`);
-            // Request status update immediately
             setTimeout(() => postCommand('/command', { command: '?' }), 200);
         } else {
             alert('Please select a time for the alarm.');
@@ -238,34 +252,64 @@ document.addEventListener('DOMContentLoaded', () => {
     cancelAlarmBtn.addEventListener('click', async () => {
         await postCommand('/command', { command: 's0' });
         alert('Alarm cancelled.');
-        // Request status update immediately
         setTimeout(() => postCommand('/command', { command: '?' }), 200);
     });
 
-    // --- INITIALIZATION ---
-    const createStationButtons = () => {
-        // Clear existing buttons first
-        stationGrid.innerHTML = '';
-        for (let i = 1; i <= TOTAL_STATIONS; i++) {
-            const btn = document.createElement('button');
-            btn.className = 'btn';
-            btn.textContent = i;
+    // --- STATION WHEEL LOGIC ---
+    const updateSelectedStation = (snap = true) => {
+        const scrollTop = stationSelector.scrollTop;
+        const selectedIndex = Math.round(scrollTop / STATION_ITEM_HEIGHT);
+        
+        selectedStationId = selectedIndex + 1;
 
-            const stationInfo = stationData[i - 1];
-            if (stationInfo) {
-                btn.title = `Name: ${stationInfo.name}\nGenre: ${stationInfo.genre}`;
+        // Update visual styles
+        const items = stationWheel.children;
+        for (let i = 0; i < items.length; i++) {
+            if (i === selectedIndex) {
+                items[i].classList.add('selected');
+            } else {
+                items[i].classList.remove('selected');
             }
-
-            btn.addEventListener('click', () => {
-                postCommand('/command', { command: `c${i}` });
-            });
-            stationGrid.appendChild(btn);
         }
+
+        if (snap) {
+            // Debounce the snap scrolling
+            clearTimeout(scrollTimeout);
+            scrollTimeout = setTimeout(() => {
+                stationSelector.scrollTo({
+                    top: selectedIndex * STATION_ITEM_HEIGHT,
+                    behavior: 'smooth'
+                });
+            }, 150); // Adjust delay as needed
+        }
+    };
+
+    stationSelector.addEventListener('scroll', () => updateSelectedStation());
+
+    playSelectedBtn.addEventListener('click', () => {
+        if (selectedStationId > 0 && selectedStationId <= TOTAL_STATIONS) {
+            postCommand('/command', { command: `c${selectedStationId}` });
+        }
+    });
+
+    // --- INITIALIZATION ---
+    const createStationWheel = () => {
+        stationWheel.innerHTML = ''; // Clear existing
+        for (let i = 0; i < TOTAL_STATIONS; i++) {
+            const station = stationData[i] || { name: 'Unknown', genre: 'N/A' };
+            const item = document.createElement('div');
+            item.className = 'station-item';
+            item.dataset.stationId = i + 1;
+            item.textContent = `${i + 1} - ${station.name} - ${station.genre}`;
+            stationWheel.appendChild(item);
+        }
+        // Set initial selection
+        updateSelectedStation(false);
     };
 
     const init = () => {
         postCommand('/command', { command: '?' });
-        createStationButtons();
+        createStationWheel();
         pollStatus(); // Initial fetch
         setInterval(pollStatus, POLLING_INTERVAL_MS); // Start polling
     };
