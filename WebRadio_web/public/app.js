@@ -2,9 +2,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- CONFIGURATION ---
     const API_BASE_PATH = 'api/radio';
-    const POLLING_INTERVAL_MS = 2000;
     const TOTAL_STATIONS = 78;
     const STATION_ITEM_HEIGHT = 50; // Corresponds to station-item height in CSS
+    const RECONNECT_INTERVAL_MS = 5000;
 
     const stationData = [
         { name: "Silver Rain", genre: "radio" },
@@ -95,7 +95,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const logEl = document.getElementById('log');
     const statusContainer = document.getElementById('status-container');
     
-    // New Station Selector Elements
     const stationSelector = document.getElementById('station-selector');
     const stationWheel = document.getElementById('station-wheel');
     const playSelectedBtn = document.getElementById('btn-play-selected');
@@ -118,29 +117,62 @@ document.addEventListener('DOMContentLoaded', () => {
     let selectedStationId = 1;
     let scrollTimeout;
     let isWheeling = false;
+    let socket;
 
-    // --- API HELPERS ---
-    const apiRequest = async (endpoint, options = {}) => {
-        try {
-            const response = await fetch(`${API_BASE_PATH}${endpoint}`, options);
-            if (!response.ok) {
-                const errorBody = await response.json().catch(() => ({ message: response.statusText }));
-                throw new Error(`API Error: ${errorBody.message || 'Unknown error'}`);
-            }
-            return response.json();
-        } catch (error) {
-            console.error(error);
-            updateStatusUI({ State: 'Offline', Log: error.message });
-            return null;
-        }
+    // --- WEBSOCKET ---
+    const getWebSocketURL = () => {
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const secretPath = window.location.pathname.split('/')[1];
+        return `${protocol}//${window.location.host}/${secretPath}/ws`;
     };
 
-    const postCommand = (endpoint, body) => {
-        return apiRequest(endpoint, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(body),
-        });
+    const connect = () => {
+        const wsUrl = getWebSocketURL();
+        console.log('Connecting to WebSocket:', wsUrl);
+        socket = new WebSocket(wsUrl);
+
+        socket.onopen = () => {
+            console.log('WebSocket connection established');
+            // Optional: Request initial state upon connection if needed
+            // postCommand('/command', { command: '?' });
+        };
+
+        socket.onmessage = (event) => {
+            try {
+                const message = JSON.parse(event.data);
+                if (message.type === 'statusUpdate') {
+                    updateStatusUI(message.data);
+                }
+            } catch (error) {
+                console.error('Error parsing WebSocket message:', error);
+            }
+        };
+
+        socket.onclose = (event) => {
+            console.log('WebSocket connection closed. Attempting to reconnect...');
+            statusContainer.className = 'status-offline';
+            stateEl.textContent = 'Connection Lost';
+            setTimeout(connect, RECONNECT_INTERVAL_MS);
+        };
+
+        socket.onerror = (error) => {
+            console.error('WebSocket error:', error);
+            socket.close(); // This will trigger the onclose handler for reconnection
+        };
+    };
+
+    // --- API HELPERS ---
+    const postCommand = (command) => {
+        if (socket && socket.readyState === WebSocket.OPEN) {
+            socket.send(JSON.stringify({ type: 'command', payload: { command } }));
+        } else {
+            // Fallback to HTTP if WebSocket is not available
+            fetch(`${API_BASE_PATH}/command`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ command }),
+            }).catch(err => console.error('HTTP command fallback failed:', err));
+        }
     };
 
     // --- UI UPDATE ---
@@ -165,7 +197,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const updateStatusUI = (data) => {
         isPowerOn = data.State?.includes('Power ON');
 
-        if (data.State === 'Offline') {
+        if (data.State === 'Offline' || data.State === 'Connection Lost') {
             statusContainer.className = 'status-offline';
         } else {
             statusContainer.className = 'status-online';
@@ -190,141 +222,90 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         logEl.textContent = data.Log || 'N/A';
 
-        // Store current state for controls
         currentVolume = parseInt(data.Volume, 10) || 0;
         const stationMatch = (data.Station || '').match(/^(\d+)/);
         currentStationNum = stationMatch ? parseInt(stationMatch[1], 10) : 1;
         
-        // Sync wheel with current station from device
         if (stationSelector.dataset.lastSyncedStation !== String(currentStationNum)) {
             const targetScrollTop = (currentStationNum - 1) * STATION_ITEM_HEIGHT;
             stationSelector.scrollTop = targetScrollTop;
             stationSelector.dataset.lastSyncedStation = String(currentStationNum);
-            updateSelectedStation(false); // Update visuals without snapping
-        }
-    };
-
-    // --- POLLING ---
-    const pollStatus = async () => {
-        const response = await apiRequest('/status');
-        if (response && response.success) {
-            updateStatusUI(response.data);
+            updateSelectedStation(false);
         }
     };
 
     // --- EVENT HANDLERS ---
-    powerBtn.addEventListener('click', () => {
-        postCommand('/command', { command: 'b1' });
-    });
+    powerBtn.addEventListener('click', () => postCommand('b1'));
+    volDownBtn.addEventListener('click', () => postCommand('vol-'));
+    volUpBtn.addEventListener('click', () => postCommand('vol+'));
+    chDownBtn.addEventListener('click', () => postCommand('b4'));
+    chUpBtn.addEventListener('click', () => postCommand('b3'));
+    sleepBtn.addEventListener('click', () => postCommand('b2'));
 
-    volDownBtn.addEventListener('click', () => {
-        postCommand('/command', { command: 'vol-' });
-    });
-
-    volUpBtn.addEventListener('click', () => {
-        postCommand('/command', { command: 'vol+' });
-    });
-
-    chDownBtn.addEventListener('click', () => {
-        postCommand('/command', { command: 'b4' });
-    });
-
-    chUpBtn.addEventListener('click', () => {
-        postCommand('/command', { command: 'b3' });
-    });
-
-    sleepBtn.addEventListener('click', () => {
-        postCommand('/command', { command: 'b2' });
-    });
-
-    setAlarmBtn.addEventListener('click', async () => {
+    setAlarmBtn.addEventListener('click', () => {
         const timeValue = alarmTimeInput.value;
         if (timeValue) {
             const [hours, minutes] = timeValue.split(':').map(Number);
             const totalSeconds = hours * 3600 + minutes * 60;
-            await postCommand('/command', { command: `s${totalSeconds}` });
+            postCommand(`s${totalSeconds}`);
             alert(`Alarm set for ${timeValue}.`);
-            setTimeout(() => postCommand('/command', { command: '?' }), 200);
+            setTimeout(() => postCommand('?'), 200);
         } else {
             alert('Please select a time for the alarm.');
         }
     });
 
-    cancelAlarmBtn.addEventListener('click', async () => {
-        await postCommand('/command', { command: 's0' });
+    cancelAlarmBtn.addEventListener('click', () => {
+        postCommand('s0');
         alert('Alarm cancelled.');
-        setTimeout(() => postCommand('/command', { command: '?' }), 200);
+        setTimeout(() => postCommand('?'), 200);
+    });
+
+    playSelectedBtn.addEventListener('click', () => {
+        if (selectedStationId > 0 && selectedStationId <= TOTAL_STATIONS) {
+            postCommand(`c${selectedStationId}`);
+        }
     });
 
     // --- STATION WHEEL LOGIC ---
     const updateSelectedStation = (snap = true) => {
         const scrollTop = stationSelector.scrollTop;
         const selectedIndex = Math.round(scrollTop / STATION_ITEM_HEIGHT);
-        
         selectedStationId = selectedIndex + 1;
 
-        // Update visual styles
         const items = stationWheel.children;
         for (let i = 0; i < items.length; i++) {
-            if (i === selectedIndex) {
-                items[i].classList.add('selected');
-            } else {
-                items[i].classList.remove('selected');
-            }
+            items[i].classList.toggle('selected', i === selectedIndex);
         }
 
         if (snap) {
-            // Debounce the snap scrolling
             clearTimeout(scrollTimeout);
             scrollTimeout = setTimeout(() => {
-                stationSelector.scrollTo({
-                    top: selectedIndex * STATION_ITEM_HEIGHT,
-                    behavior: 'smooth'
-                });
-            }, 150); // Adjust delay as needed
+                stationSelector.scrollTo({ top: selectedIndex * STATION_ITEM_HEIGHT, behavior: 'smooth' });
+            }, 150);
         }
     };
 
-    // This listener handles touch scrolling and the final snap after any scroll.
     stationSelector.addEventListener('scroll', () => {
-        if (!isWheeling) { // Don't run this logic during a mouse wheel scroll
-            updateSelectedStation();
-        }
+        if (!isWheeling) updateSelectedStation();
     });
 
-    // This listener specifically handles mouse wheel scrolling to be less sensitive.
     stationSelector.addEventListener('wheel', (e) => {
-        e.preventDefault(); // Stop the default scroll
-
-        if (isWheeling) return; // Throttle wheel events
-
+        e.preventDefault();
+        if (isWheeling) return;
         const scrollDirection = Math.sign(e.deltaY);
-        const currentScrollTop = stationSelector.scrollTop;
-        const targetScrollTop = currentScrollTop + (scrollDirection * STATION_ITEM_HEIGHT);
-
-        stationSelector.scrollTo({
-            top: targetScrollTop,
-            behavior: 'smooth'
-        });
-
+        const targetScrollTop = stationSelector.scrollTop + (scrollDirection * STATION_ITEM_HEIGHT);
+        stationSelector.scrollTo({ top: targetScrollTop, behavior: 'smooth' });
         isWheeling = true;
-        
-        // Update selection after the smooth scroll is likely finished
         setTimeout(() => {
-            updateSelectedStation(false); // Update visuals
+            updateSelectedStation(false);
             isWheeling = false;
-        }, 200); // This timeout should be close to the smooth scroll duration
-    });
-
-    playSelectedBtn.addEventListener('click', () => {
-        if (selectedStationId > 0 && selectedStationId <= TOTAL_STATIONS) {
-            postCommand('/command', { command: `c${selectedStationId}` });
-        }
+        }, 200);
     });
 
     // --- INITIALIZATION ---
     const createStationWheel = () => {
-        stationWheel.innerHTML = ''; // Clear existing
+        stationWheel.innerHTML = '';
         for (let i = 0; i < TOTAL_STATIONS; i++) {
             const station = stationData[i] || { name: 'Unknown', genre: 'N/A' };
             const item = document.createElement('div');
@@ -333,15 +314,13 @@ document.addEventListener('DOMContentLoaded', () => {
             item.textContent = `${i + 1} - ${station.name} - ${station.genre}`;
             stationWheel.appendChild(item);
         }
-        // Set initial selection
         updateSelectedStation(false);
     };
 
     const init = () => {
-        postCommand('/command', { command: '?' });
         createStationWheel();
-        pollStatus(); // Initial fetch
-        setInterval(pollStatus, POLLING_INTERVAL_MS); // Start polling
+        connect(); // Connect to WebSocket
+        postCommand('?'); // Initial command to get status
     };
 
     init();

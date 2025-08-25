@@ -1,8 +1,9 @@
-
 const express = require('express');
 const mqtt = require('mqtt');
 const cors = require('cors');
 const crypto = require('crypto');
+const http = require('http');
+const WebSocket = require('ws');
 require('dotenv').config();
 
 const app = express();
@@ -57,44 +58,30 @@ client.on('error', (err) => {
     console.error('MQTT connection error:', err);
     radioState.State = "Offline";
     radioState.Log = `MQTT Error: ${err.message}`;
+    broadcastUpdate();
 });
 
 client.on('close', () => {
     console.log('MQTT connection closed. Reconnecting...');
     radioState.State = "Offline";
     radioState.Log = "MQTT connection closed.";
+    broadcastUpdate();
 });
-
 
 client.on('message', (topic, message) => {
     const topicSuffix = topic.replace(`${MQTT_PREFIX}/`, '');
     const value = message.toString();
 
-    switch (topicSuffix) {
-        case 'State':
-            radioState.State = value;
-            break;
-        case 'Volume':
-            radioState.Volume = value;
-            break;
-        case 'Station':
-            radioState.Station = value;
-            break;
-        case 'Title':
-            radioState.Title = value;
-            break;
-        case 'Log':
-            radioState.Log = value;
-            break;
-        case 'FreeHeap':
-            radioState.FreeHeap = value;
-            break;
-        case 'Alarm':
-            radioState.Alarm = value;
-            break;
+    let updated = false;
+    if (radioState[topicSuffix] !== undefined && radioState[topicSuffix] !== value) {
+        radioState[topicSuffix] = value;
+        updated = true;
+    }
+
+    if (updated) {
+        broadcastUpdate();
     }
 });
-
 
 // --- Express Middleware ---
 app.use(cors());
@@ -107,11 +94,14 @@ const secretPathMiddleware = (req, res, next) => {
         req.url = req.url.replace(`/${SECRET_TOKEN}`, '') || '/';
         return next();
     }
+    // For WebSocket, the upgrade request is handled separately
+    if (req.headers.upgrade && req.headers.upgrade.toLowerCase() === 'websocket') {
+        return next();
+    }
     return res.status(404).send('Not Found');
 };
 
 app.use(secretPathMiddleware);
-
 
 // --- API Routes ---
 const apiRouter = express.Router();
@@ -131,7 +121,9 @@ const publishMqttCommand = (res, command, successData) => {
             console.error(`Failed to publish command '${command}':`, err);
             return res.status(500).json({ success: false, message: 'Failed to publish MQTT command' });
         }
-        res.json({ success: true, ...successData });
+        if (res) { // res will be null for WebSocket calls
+            res.json({ success: true, ...successData });
+        }
     });
 };
 
@@ -179,15 +171,65 @@ apiRouter.post('/command', (req, res) => {
     publishMqttCommand(res, command, { command });
 });
 
-
 app.use('/api/radio', apiRouter);
 
 // --- Static Frontend Hosting ---
 app.use('/', express.static('public'));
 
+// --- Server and WebSocket Setup ---
+const server = http.createServer(app);
+const wss = new WebSocket.Server({ noServer: true });
+
+const broadcastUpdate = () => {
+    const message = JSON.stringify({
+        type: 'statusUpdate',
+        data: radioState
+    });
+    wss.clients.forEach(client => {
+        if (client.readyState === WebSocket.OPEN) {
+            client.send(message);
+        }
+    });
+};
+
+server.on('upgrade', (request, socket, head) => {
+    // Authenticate WebSocket connection URL
+    const url = new URL(request.url, `http://${request.headers.host}`);
+    if (url.pathname === `/${SECRET_TOKEN}/ws`) {
+        wss.handleUpgrade(request, socket, head, (ws) => {
+            wss.emit('connection', ws, request);
+        });
+    } else {
+        console.log('WebSocket connection rejected: Invalid token.');
+        socket.destroy();
+    }
+});
+
+wss.on('connection', (ws) => {
+    console.log('WebSocket client connected');
+    // Send initial state
+    ws.send(JSON.stringify({ type: 'statusUpdate', data: radioState }));
+
+    ws.on('message', (message) => {
+        try {
+            const parsed = JSON.parse(message);
+            if (parsed.type === 'command' && parsed.payload) {
+                // Allow frontend to send commands via WebSocket too
+                publishMqttCommand(null, parsed.payload.command, {});
+            }
+        } catch (e) {
+            console.error('Failed to parse WebSocket message:', e);
+        }
+    });
+
+    ws.on('close', () => {
+        console.log('WebSocket client disconnected');
+    });
+});
 
 // --- Server Start ---
-app.listen(port, '0.0.0.0', () => {
+server.listen(port, '0.0.0.0', () => {
     console.log(`Server listening on http://0.0.0.0:${port}`);
     console.log(`Access the web interface at: http://YOUR_SERVER_IP:${port}/${SECRET_TOKEN}`);
+    console.log(`WebSocket endpoint: ws://YOUR_SERVER_IP:${port}/${SECRET_TOKEN}/ws`);
 });
