@@ -284,3 +284,14 @@ h2 {
         padding: 15px 20px; /* Adjust padding for full width */
     }
 }
+
+@media (max-width: 400px) {
+    .alarm-controls {
+        grid-template-columns: 1fr; /* Stack controls vertically */
+    }
+
+    .alarm-controls .btn {
+        width: 100%; /* Make buttons full width */
+        box-sizing: border-box; /* Include padding in the width calculation */
+    }
+}
