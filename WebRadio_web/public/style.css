@@ -163,6 +163,10 @@ h2 {
     transition: all 0.3s ease;
     opacity: 0.5;
     transform: scale(0.9);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    padding: 0 10px; /* Add some padding */
 }
 
 .station-item.selected {
