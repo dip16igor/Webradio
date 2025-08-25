@@ -117,6 +117,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let isPowerOn = false;
     let selectedStationId = 1;
     let scrollTimeout;
+    let isWheeling = false;
 
     // --- API HELPERS ---
     const apiRequest = async (endpoint, options = {}) => {
@@ -284,7 +285,36 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
-    stationSelector.addEventListener('scroll', () => updateSelectedStation());
+    // This listener handles touch scrolling and the final snap after any scroll.
+    stationSelector.addEventListener('scroll', () => {
+        if (!isWheeling) { // Don't run this logic during a mouse wheel scroll
+            updateSelectedStation();
+        }
+    });
+
+    // This listener specifically handles mouse wheel scrolling to be less sensitive.
+    stationSelector.addEventListener('wheel', (e) => {
+        e.preventDefault(); // Stop the default scroll
+
+        if (isWheeling) return; // Throttle wheel events
+
+        const scrollDirection = Math.sign(e.deltaY);
+        const currentScrollTop = stationSelector.scrollTop;
+        const targetScrollTop = currentScrollTop + (scrollDirection * STATION_ITEM_HEIGHT);
+
+        stationSelector.scrollTo({
+            top: targetScrollTop,
+            behavior: 'smooth'
+        });
+
+        isWheeling = true;
+        
+        // Update selection after the smooth scroll is likely finished
+        setTimeout(() => {
+            updateSelectedStation(false); // Update visuals
+            isWheeling = false;
+        }, 200); // This timeout should be close to the smooth scroll duration
+    });
 
     playSelectedBtn.addEventListener('click', () => {
         if (selectedStationId > 0 && selectedStationId <= TOTAL_STATIONS) {
