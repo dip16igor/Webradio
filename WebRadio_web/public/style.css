@@ -163,10 +163,11 @@ h2 {
     transition: all 0.3s ease;
     opacity: 0.5;
     transform: scale(0.9);
+    /* Truncate text on wide screens where the column is narrow */
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    padding: 0 10px; /* Add some padding */
+    padding: 0 10px;
 }
 
 .station-item.selected {
@@ -264,5 +265,22 @@ h2 {
     }
     .station-grid {
         grid-template-columns: repeat(auto-fill, minmax(60px, 1fr));
+    }
+
+    /* Responsive layout for station selector */
+    .station-selector-container {
+        grid-template-columns: 1fr; /* Switch to a single column layout */
+        gap: 10px;
+    }
+
+    .station-item {
+        white-space: normal; /* Allow text to wrap on narrow screens */
+        text-overflow: initial;
+        overflow: visible;
+    }
+
+    #btn-play-selected {
+        width: 100%;
+        padding: 15px 20px; /* Adjust padding for full width */
     }
 }
