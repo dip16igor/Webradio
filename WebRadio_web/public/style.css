@@ -232,6 +232,12 @@ h2 {
     border-radius: 6px;
 }
 
+#volume {
+    display: inline-block;
+    width: 25px;
+    text-align: left;
+}
+
 /* Volume Icon */
 #volume-icon {
     margin-left: 10px;
