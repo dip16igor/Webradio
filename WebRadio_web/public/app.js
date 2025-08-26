@@ -312,16 +312,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     stationSelector.addEventListener('wheel', (e) => {
         e.preventDefault();
-        if (isWheeling) return;
-
-        const scrollDirection = Math.sign(e.deltaY);
-        stationSelector.scrollTop += scrollDirection * STATION_ITEM_HEIGHT;
-        
-        isWheeling = true;
-        
-        setTimeout(() => {
-            isWheeling = false;
-        }, 50); // A small delay to prevent overly fast scrolling
+        const scrollAmount = e.deltaY * 0.4; 
+        stationSelector.scrollTop += scrollAmount;
     });
 
     // --- INITIALIZATION ---
