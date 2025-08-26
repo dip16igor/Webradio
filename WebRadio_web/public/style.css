@@ -196,18 +196,7 @@ h2 {
         rgba(255,255,255,1) 100%);
 }
 
-.station-selector-center-line {
-    position: absolute;
-    top: 50%;
-    left: 0;
-    right: 0;
-    height: 50px;
-    margin-top: -25px;
-    border-top: 2px solid #38a169;
-    border-bottom: 2px solid #38a169;
-    pointer-events: none;
-    opacity: 0.5;
-}
+
 
 #btn-play-selected {
     padding: 20px 25px;
