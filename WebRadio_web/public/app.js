@@ -116,7 +116,6 @@ document.addEventListener('DOMContentLoaded', () => {
     let isPowerOn = false;
     let selectedStationId = 1;
     let scrollTimeout;
-    let isWheeling = false;
     let socket;
 
     // --- WEBSOCKET ---
@@ -287,20 +286,13 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     stationSelector.addEventListener('scroll', () => {
-        if (!isWheeling) updateSelectedStation();
+        // When scrolling, always update the visual selection without snapping
+        updateSelectedStation(false); 
     });
 
     stationSelector.addEventListener('wheel', (e) => {
         e.preventDefault();
-        if (isWheeling) return;
-        const scrollDirection = Math.sign(e.deltaY);
-        const targetScrollTop = stationSelector.scrollTop + (scrollDirection * STATION_ITEM_HEIGHT);
-        stationSelector.scrollTo({ top: targetScrollTop, behavior: 'smooth' });
-        isWheeling = true;
-        setTimeout(() => {
-            updateSelectedStation(false);
-            isWheeling = false;
-        }, 1);
+        stationSelector.scrollTop += e.deltaY;
     });
 
     // --- INITIALIZATION ---
