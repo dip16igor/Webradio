@@ -273,9 +273,29 @@ document.addEventListener('DOMContentLoaded', () => {
         const selectedIndex = Math.round(scrollTop / STATION_ITEM_HEIGHT);
         selectedStationId = selectedIndex + 1;
 
+        const selectorCenterY = scrollTop + stationSelector.offsetHeight / 2;
+
         const items = stationWheel.children;
         for (let i = 0; i < items.length; i++) {
-            items[i].classList.toggle('selected', i === selectedIndex);
+            const item = items[i];
+            const itemCenterY = item.offsetTop - stationWheel.offsetTop + item.offsetHeight / 2;
+            
+            const distance = Math.abs(selectorCenterY - itemCenterY);
+
+            const maxDistance = stationSelector.offsetHeight / 2;
+            const distanceFactor = Math.min(distance / maxDistance, 1);
+
+            if (i === selectedIndex) {
+                item.classList.add('selected');
+                item.style.opacity = 1;
+                item.style.transform = 'scale(1)';
+            } else {
+                item.classList.remove('selected');
+                const opacity = 1 - (distanceFactor * 0.7);
+                const scale = 1 - (distanceFactor * 0.3);
+                item.style.opacity = Math.max(0, opacity);
+                item.style.transform = `scale(${Math.max(0, scale)})`;
+            }
         }
 
         if (snap) {

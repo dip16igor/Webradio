@@ -164,9 +164,6 @@ h2 {
     text-align: center;
     font-size: 1.1em;
     color: #888;
-    transition: all 0.3s ease;
-    opacity: 0.5;
-    transform: scale(0.9);
     /* Truncate text on wide screens where the column is narrow */
     white-space: nowrap;
     overflow: hidden;
