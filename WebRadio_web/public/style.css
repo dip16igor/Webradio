@@ -164,12 +164,12 @@ h2 {
     text-align: center;
     font-size: 1.1em;
     color: #888;
+    transition: opacity 0.3s ease, transform 0.3s ease;
     /* Truncate text on wide screens where the column is narrow */
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
     padding: 0 10px;
-    border: 1px solid red;
 }
 
 .station-item.selected {
@@ -180,19 +180,7 @@ h2 {
     transform: scale(1);
 }
 
-.station-selector-overlay {
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    pointer-events: none; /* Allows scrolling through the overlay */
-    background: linear-gradient(to bottom, 
-        rgba(255,255,255,1) 0%, 
-        rgba(255,255,255,0) 40%, 
-        rgba(255,255,255,0) 60%, 
-        rgba(255,255,255,1) 100%);
-}
+
 
 
 

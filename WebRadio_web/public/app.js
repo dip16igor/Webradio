@@ -342,6 +342,19 @@ document.addEventListener('DOMContentLoaded', () => {
         createStationWheel();
         connect(); // Connect to WebSocket
         postCommand('?'); // Initial command to get status
+
+        // --- DEBUG ---
+        const thirdItem = stationWheel.children[2];
+        if (thirdItem) {
+            console.log('--- DEBUG INFO ---');
+            console.log('Third item outerHTML:', thirdItem.outerHTML);
+            console.log('Third item offsetTop:', thirdItem.offsetTop);
+            console.log('Third item clientHeight:', thirdItem.clientHeight);
+            console.log('Parent (stationWheel) offsetTop:', stationWheel.offsetTop);
+            console.log('Selector (stationSelector) clientHeight:', stationSelector.clientHeight);
+            console.log('Selector computed overflow:', window.getComputedStyle(stationSelector).overflow);
+            console.log('--- END DEBUG INFO ---');
+        }
     };
 
     init();
