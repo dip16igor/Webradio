@@ -169,6 +169,7 @@ h2 {
     overflow: hidden;
     text-overflow: ellipsis;
     padding: 0 10px;
+    border: 1px solid red;
 }
 
 .station-item.selected {
