@@ -267,7 +267,7 @@ h2 {
         padding: 15px;
     }
     #status-container {
-        padding: 8px;
+        padding: 5px;
     }
     .controls-grid {
         grid-template-columns: repeat(2, 1fr);
