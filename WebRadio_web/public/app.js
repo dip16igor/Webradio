@@ -300,7 +300,7 @@ document.addEventListener('DOMContentLoaded', () => {
         setTimeout(() => {
             updateSelectedStation(false);
             isWheeling = false;
-        }, 200);
+        }, 50);
     });
 
     // --- INITIALIZATION ---
