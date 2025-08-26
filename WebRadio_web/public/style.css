@@ -266,15 +266,14 @@ h2 {
     .container {
         padding: 15px;
     }
+    #status-container {
+        padding: 8px;
+    }
     .controls-grid {
         grid-template-columns: repeat(2, 1fr);
     }
     .station-grid {
         grid-template-columns: repeat(auto-fill, minmax(60px, 1fr));
-    }
-
-    .info-grid p {
-        padding: 3px;
     }
 
     /* Responsive layout for station selector */
