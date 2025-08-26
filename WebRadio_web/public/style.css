@@ -273,6 +273,10 @@ h2 {
         grid-template-columns: repeat(auto-fill, minmax(60px, 1fr));
     }
 
+    .info-grid p {
+        padding: 3px;
+    }
+
     /* Responsive layout for station selector */
     .station-selector-container {
         grid-template-columns: 1fr; /* Switch to a single column layout */
