@@ -84,24 +84,25 @@ client.on('message', (topic, message) => {
 });
 
 // --- Express Middleware ---
-app.use(cors());
-app.use(express.json());
+
 
 // Middleware to protect all routes
-const secretPathMiddleware = (req, res, next) => {
-    if (req.path.startsWith(`/${SECRET_TOKEN}`)) {
-        // Strip the secret token from the path for subsequent routing
-        req.url = req.url.replace(`/${SECRET_TOKEN}`, '') || '/';
+const authMiddleware = (req, res, next) => {
+    const token = req.headers['x-auth-token'];
+
+    if (token && token === SECRET_TOKEN) {
         return next();
     }
+
     // For WebSocket, the upgrade request is handled separately
     if (req.headers.upgrade && req.headers.upgrade.toLowerCase() === 'websocket') {
         return next();
     }
-    return res.status(404).send('Not Found');
+
+    return res.status(401).send('Unauthorized');
 };
 
-app.use(secretPathMiddleware);
+app.use('/api/radio', authMiddleware, apiRouter);
 
 // --- API Routes ---
 const apiRouter = express.Router();
@@ -193,9 +194,10 @@ const broadcastUpdate = () => {
 };
 
 server.on('upgrade', (request, socket, head) => {
-    // Authenticate WebSocket connection URL
     const url = new URL(request.url, `http://${request.headers.host}`);
-    if (url.pathname === `/${SECRET_TOKEN}/ws`) {
+    const token = url.searchParams.get('token');
+
+    if (token === SECRET_TOKEN) {
         wss.handleUpgrade(request, socket, head, (ws) => {
             wss.emit('connection', ws, request);
         });

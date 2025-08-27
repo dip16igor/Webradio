@@ -122,12 +122,28 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- WEBSOCKET ---
     const getWebSocketURL = () => {
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-        const secretPath = window.location.pathname.split('/')[1];
-        return `${protocol}//${window.location.host}/${secretPath}/ws`;
+        // We will now prompt the user for the token
+        const token = localStorage.getItem('secret_token');
+        if (!token) {
+            const userToken = prompt('Please enter the secret token');
+            if (userToken) {
+                localStorage.setItem('secret_token', userToken);
+                return `${protocol}//${window.location.host}/ws?token=${userToken}`;
+            } else {
+                return null;
+            }
+        }
+        return `${protocol}//${window.location.host}/ws?token=${token}`;
     };
 
     const connect = () => {
         const wsUrl = getWebSocketURL();
+        if (!wsUrl) {
+            // Handle case where user cancels the prompt
+            statusContainer.className = 'status-offline';
+            stateEl.textContent = 'No secret token provided.';
+            return;
+        }
         console.log('Connecting to WebSocket:', wsUrl);
         socket = new WebSocket(wsUrl);
 
@@ -163,13 +179,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- API HELPERS ---
     const postCommand = (command) => {
+        const token = localStorage.getItem('secret_token');
         if (socket && socket.readyState === WebSocket.OPEN) {
             socket.send(JSON.stringify({ type: 'command', payload: { command } }));
         } else {
             // Fallback to HTTP if WebSocket is not available
             fetch(`${API_BASE_PATH}/command`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-Auth-Token': token
+                },
                 body: JSON.stringify({ command }),
             }).catch(err => console.error('HTTP command fallback failed:', err));
         }
