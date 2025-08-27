@@ -102,8 +102,6 @@ const authMiddleware = (req, res, next) => {
     return res.status(401).send('Unauthorized');
 };
 
-app.use('/api/radio', authMiddleware, apiRouter);
-
 // --- API Routes ---
 const apiRouter = express.Router();
 
@@ -172,7 +170,7 @@ apiRouter.post('/command', (req, res) => {
     publishMqttCommand(res, command, { command });
 });
 
-app.use('/api/radio', apiRouter);
+app.use('/api/radio', authMiddleware, apiRouter);
 
 // --- Static Frontend Hosting ---
 app.use('/', express.static('public'));
