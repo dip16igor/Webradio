@@ -179,19 +179,25 @@ document.addEventListener('DOMContentLoaded', () => {
     const updateVolumeIcon = (volume) => {
         const numBars = 7;
         const volumeLevel = parseInt(volume, 10);
+        
+        // Clear existing bars
+        volumeIconEl.innerHTML = '';
+
         if (isNaN(volumeLevel)) {
-            volumeIconEl.innerHTML = '';
             return;
         }
 
         const activeBars = Math.ceil((volumeLevel / 21) * numBars);
-        let iconHTML = '';
         for (let i = 0; i < numBars; i++) {
+            const bar = document.createElement('span');
             const barHeight = 4 + (i * 2);
-            const activeClass = i < activeBars ? 'active' : '';
-            iconHTML += `<span class="volume-bar ${activeClass}" style="height: ${barHeight}px;"></span>`;
+            bar.className = 'volume-bar';
+            if (i < activeBars) {
+                bar.classList.add('active');
+            }
+            bar.style.height = `${barHeight}px`;
+            volumeIconEl.appendChild(bar);
         }
-        volumeIconEl.innerHTML = iconHTML;
     };
 
     const updateStatusUI = (data) => {
