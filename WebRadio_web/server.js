@@ -4,9 +4,11 @@ const cors = require('cors');
 const crypto = require('crypto');
 const http = require('http');
 const WebSocket = require('ws');
+const helmet = require('helmet');
 require('dotenv').config();
 
 const app = express();
+app.use(helmet());
 const port = 3000;
 
 // --- Configuration ---
