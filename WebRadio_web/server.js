@@ -5,6 +5,7 @@ const crypto = require('crypto');
 const http = require('http');
 const WebSocket = require('ws');
 const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
 require('dotenv').config();
 
 const app = express();
@@ -17,6 +18,17 @@ app.use(helmet({
 
 // Middleware to parse JSON bodies
 app.use(express.json());
+
+// Rate limiting to prevent brute-force attacks
+const apiLimiter = rateLimit({
+	windowMs: 15 * 60 * 1000, // 15 minutes
+	max: 100, // Limit each IP to 100 requests per windowMs
+	standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
+	legacyHeaders: false, // Disable the `X-RateLimit-*` headers
+});
+
+// Apply the rate limiting middleware to API calls only
+app.use('/api', apiLimiter);
 
 const port = 3000;
 
