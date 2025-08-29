@@ -8,16 +8,20 @@ const helmet = require('helmet');
 require('dotenv').config();
 
 const app = express();
-app.use(helmet({
-    strictTransportSecurity: false,
-    contentSecurityPolicy: {
-        directives: {
-            ...helmet.contentSecurityPolicy.getDefaultDirectives(),
-            "script-src": ["'self'"],
-            "style-src": ["'self'", "'unsafe-inline'"],
-        },
-    },
-}));
+// app.use(helmet({
+//     strictTransportSecurity: false,
+//     crossOriginOpenerPolicy: false,
+//     crossOriginEmbedderPolicy: false,
+//     crossOriginResourcePolicy: false,
+//     originAgentCluster: false,
+//     contentSecurityPolicy: {
+//         directives: {
+//             ...helmet.contentSecurityPolicy.getDefaultDirectives(),
+//             "script-src": ["'self'"],
+//             "style-src": ["'self'", "'unsafe-inline'"],
+//         },
+//     },
+// }));
 const port = 3000;
 
 // --- Configuration ---
