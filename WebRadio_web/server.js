@@ -1,6 +1,5 @@
 const express = require('express');
 const mqtt = require('mqtt');
-const cors = require('cors');
 const crypto = require('crypto');
 const http = require('http');
 const WebSocket = require('ws');
@@ -83,6 +82,8 @@ client.on('close', () => {
     broadcastUpdate();
 });
 
+let radioState = {};
+
 client.on('message', (topic, message) => {
     const topicSuffix = topic.replace(`${MQTT_PREFIX}/`, '');
     const value = message.toString();
@@ -97,25 +98,6 @@ client.on('message', (topic, message) => {
         broadcastUpdate();
     }
 });
-
-// --- Express Middleware ---
-
-
-// Middleware to protect all routes
-const authMiddleware = (req, res, next) => {
-    const token = req.headers['x-auth-token'];
-
-    if (token && token === SECRET_TOKEN) {
-        return next();
-    }
-
-    // For WebSocket, the upgrade request is handled separately
-    if (req.headers.upgrade && req.headers.upgrade.toLowerCase() === 'websocket') {
-        return next();
-    }
-
-    return res.status(401).send('Unauthorized');
-};
 
 // --- API Routes ---
 const apiRouter = express.Router();
@@ -208,7 +190,7 @@ apiRouter.post(
     }
 );
 
-app.use('/api/radio', authMiddleware, apiRouter);
+app.use('/api/radio', apiRouter);
 
 // --- Static Frontend Hosting ---
 app.use('/', express.static('public'));
@@ -230,7 +212,9 @@ const broadcastUpdate = () => {
 };
 
 server.on('upgrade', (request, socket, head) => {
-    const url = new URL(request.url, `http://${request.headers.host}`);
+    // Correctly construct the URL for parsing
+    const fullUrl = `ws://${request.headers.host}${request.url}`;
+    const url = new URL(fullUrl);
     const token = url.searchParams.get('token');
 
     if (token === SECRET_TOKEN) {
@@ -268,6 +252,6 @@ wss.on('connection', (ws) => {
 // --- Server Start ---
 server.listen(port, '0.0.0.0', () => {
     console.log(`Server listening on http://0.0.0.0:${port}`);
-    console.log(`Access the web interface at: http://YOUR_SERVER_IP:${port}/${SECRET_TOKEN}`);
-    console.log(`WebSocket endpoint: ws://YOUR_SERVER_IP:${port}/${SECRET_TOKEN}/ws`);
+    console.log(`Access the web interface at: http://YOUR_SERVER_IP:${port}`);
+    console.log(`WebSocket endpoint is protected and requires a token.`);
 });

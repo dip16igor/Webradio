@@ -7,6 +7,8 @@ services:
     restart: unless-stopped
     networks:
       - root_default
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.webradio.rule=Host(`webradio.dip16.freemyip.com`)"
