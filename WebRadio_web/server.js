@@ -10,6 +10,7 @@ const { body, validationResult } = require('express-validator');
 require('dotenv').config();
 
 const app = express();
+app.set('trust proxy', 1); // Trust the first proxy
 
 // Security headers
 app.use(helmet({
@@ -55,16 +56,6 @@ const mqttOptions = {
 };
 
 const client = mqtt.connect(MQTT_BROKER_URL, mqttOptions);
-
-const radioState = {
-    State: "Offline",
-    Volume: "N/A",
-    Station: "N/A",
-    Title: "N/A",
-    Log: "N/A",
-    FreeHeap: "N/A",
-    Alarm: "N/A"
-};
 
 client.on('connect', () => {
     console.log('Connected to MQTT broker');
