@@ -12,17 +12,7 @@ const app = express();
 // Security headers
 app.use(helmet({
     strictTransportSecurity: false,
-    crossOriginOpenerPolicy: false,
-    crossOriginEmbedderPolicy: false,
-    crossOriginResourcePolicy: false,
-    originAgentCluster: false,
-    contentSecurityPolicy: {
-        directives: {
-            ...helmet.contentSecurityPolicy.getDefaultDirectives(),
-            "script-src": ["'self'"],
-            "style-src": ["'self'", "'unsafe-inline'"],
-        },
-    },
+    contentSecurityPolicy: false,
 }));
 
 // Middleware to parse JSON bodies
