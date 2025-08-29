@@ -9,7 +9,7 @@ const { body, validationResult } = require('express-validator');
 require('dotenv').config();
 
 const app = express();
-app.set('trust proxy', 1); // Trust the first proxy
+app.set('trust proxy', true); // Trust the proxy
 
 // Security headers
 app.use(helmet({
