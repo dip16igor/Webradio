@@ -6,6 +6,7 @@ const http = require('http');
 const WebSocket = require('ws');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
+const { body, validationResult } = require('express-validator');
 require('dotenv').config();
 
 const app = express();
@@ -149,49 +150,72 @@ const publishMqttCommand = (res, command, successData) => {
     });
 };
 
-apiRouter.post('/station', (req, res) => {
-    const { station } = req.body;
-    if (typeof station === 'undefined') {
-        return res.status(400).json({ success: false, message: 'Missing "station" in request body' });
+const validateRequest = (req, res, next) => {
+    const errors = validationResult(req);
+    if (errors.isEmpty()) {
+        return next();
     }
-    const command = `st${station}`;
-    publishMqttCommand(res, command, { command, station });
-});
+    const extractedErrors = [];
+    errors.array().map(err => extractedErrors.push({ [err.param]: err.msg }));
 
-apiRouter.post('/volume', (req, res) => {
-    const { volume } = req.body;
-    if (typeof volume === 'undefined' || volume < 0 || volume > 21) {
-        return res.status(400).json({ success: false, message: 'Invalid "volume" in request body (must be 0-21)' });
-    }
-    const command = `v${volume}`;
-    publishMqttCommand(res, command, { command, volume });
-});
+    return res.status(422).json({
+        errors: extractedErrors,
+    });
+};
 
-apiRouter.post('/power', (req, res) => {
-    const { state } = req.body;
-    if (!['on', 'off'].includes(state)) {
-        return res.status(400).json({ success: false, message: 'Invalid "state" in request body (must be "on" or "off")' });
+apiRouter.post(
+    '/station',
+    body('station').isNumeric().withMessage('must be a number'),
+    validateRequest,
+    (req, res) => {
+        const { station } = req.body;
+        const command = `st${station}`;
+        publishMqttCommand(res, command, { command, station });
     }
-    const command = `power_${state}`;
-    publishMqttCommand(res, command, { command, state });
-});
+);
 
-apiRouter.post('/alarm', (req, res) => {
-    const { seconds } = req.body;
-    if (typeof seconds === 'undefined' || seconds < 0 || seconds > 86400) {
-        return res.status(400).json({ success: false, message: 'Invalid "seconds" in request body (must be 0-86400)' });
+apiRouter.post(
+    '/volume',
+    body('volume').isInt({ min: 0, max: 21 }).withMessage('must be an integer between 0 and 21'),
+    validateRequest,
+    (req, res) => {
+        const { volume } = req.body;
+        const command = `v${volume}`;
+        publishMqttCommand(res, command, { command, volume });
     }
-    const command = `s${seconds}`;
-    publishMqttCommand(res, command, { command, seconds });
-});
+);
 
-apiRouter.post('/command', (req, res) => {
-    const { command } = req.body;
-    if (typeof command !== 'string' || command.trim() === '') {
-        return res.status(400).json({ success: false, message: 'Invalid "command" in request body' });
+apiRouter.post(
+    '/power',
+    body('state').isIn(['on', 'off']).withMessage('must be "on" or "off"'),
+    validateRequest,
+    (req, res) => {
+        const { state } = req.body;
+        const command = `power_${state}`;
+        publishMqttCommand(res, command, { command, state });
     }
-    publishMqttCommand(res, command, { command });
-});
+);
+
+apiRouter.post(
+    '/alarm',
+    body('seconds').isInt({ min: 0, max: 86400 }).withMessage('must be an integer between 0 and 86400'),
+    validateRequest,
+    (req, res) => {
+        const { seconds } = req.body;
+        const command = `s${seconds}`;
+        publishMqttCommand(res, command, { command, seconds });
+    }
+);
+
+apiRouter.post(
+    '/command',
+    body('command').isString().notEmpty().withMessage('must be a non-empty string'),
+    validateRequest,
+    (req, res) => {
+        const { command } = req.body;
+        publishMqttCommand(res, command, { command });
+    }
+);
 
 app.use('/api/radio', authMiddleware, apiRouter);
 
