@@ -1,0 +1,21 @@
+version: '3.8'
+
+services:
+  webradio:
+    build: .
+    container_name: webradio-web
+    restart: unless-stopped
+    networks:
+      - root_default # Connect to the existing network used by Traefik
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.webradio.rule=Host(`webradio.dip16.freemyip.com`)"
+      - "traefik.http.routers.webradio.entrypoints=websecure"
+      - "traefik.http.routers.webradio.tls.certresolver=mytlschallenge"
+      - "traefik.http.services.webradio.loadbalancer.server.port=3000"
+    env_file:
+      - .env
+
+networks:
+  root_default:
+    external: true # Specify that this network is created outside of this compose file
