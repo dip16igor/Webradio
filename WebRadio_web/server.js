@@ -9,6 +9,7 @@ require('dotenv').config();
 
 const app = express();
 app.use(helmet({
+    strictTransportSecurity: false,
     contentSecurityPolicy: {
         directives: {
             ...helmet.contentSecurityPolicy.getDefaultDirectives(),
