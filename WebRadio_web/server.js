@@ -6,7 +6,7 @@ const WebSocket = require('ws');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const { body, validationResult } = require('express-validator');
-require('dotenv').config();
+
 
 const app = express();
 app.set('trust proxy', true); // Trust the proxy
