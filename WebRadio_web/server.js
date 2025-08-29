@@ -8,20 +8,26 @@ const helmet = require('helmet');
 require('dotenv').config();
 
 const app = express();
-// app.use(helmet({
-//     strictTransportSecurity: false,
-//     crossOriginOpenerPolicy: false,
-//     crossOriginEmbedderPolicy: false,
-//     crossOriginResourcePolicy: false,
-//     originAgentCluster: false,
-//     contentSecurityPolicy: {
-//         directives: {
-//             ...helmet.contentSecurityPolicy.getDefaultDirectives(),
-//             "script-src": ["'self'"],
-//             "style-src": ["'self'", "'unsafe-inline'"],
-//         },
-//     },
-// }));
+
+// Security headers
+app.use(helmet({
+    strictTransportSecurity: false,
+    crossOriginOpenerPolicy: false,
+    crossOriginEmbedderPolicy: false,
+    crossOriginResourcePolicy: false,
+    originAgentCluster: false,
+    contentSecurityPolicy: {
+        directives: {
+            ...helmet.contentSecurityPolicy.getDefaultDirectives(),
+            "script-src": ["'self'"],
+            "style-src": ["'self'", "'unsafe-inline'"],
+        },
+    },
+}));
+
+// Middleware to parse JSON bodies
+app.use(express.json());
+
 const port = 3000;
 
 // --- Configuration ---
