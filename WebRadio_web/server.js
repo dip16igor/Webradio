@@ -8,7 +8,15 @@ const helmet = require('helmet');
 require('dotenv').config();
 
 const app = express();
-app.use(helmet());
+app.use(helmet({
+    contentSecurityPolicy: {
+        directives: {
+            ...helmet.contentSecurityPolicy.getDefaultDirectives(),
+            "script-src": ["'self'"],
+            "style-src": ["'self'", "'unsafe-inline'"],
+        },
+    },
+}));
 const port = 3000;
 
 // --- Configuration ---
