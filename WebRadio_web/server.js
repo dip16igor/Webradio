@@ -102,6 +102,19 @@ client.on('message', (topic, message) => {
 // --- API Routes ---
 const apiRouter = express.Router();
 
+// Middleware for API authentication
+const apiAuth = (req, res, next) => {
+    const token = req.headers['x-auth-token'];
+    if (token && token === SECRET_TOKEN) {
+        return next();
+    } else {
+        return res.status(401).json({ success: false, message: 'Unauthorized: Invalid or missing token' });
+    }
+};
+
+// Protect all API routes
+apiRouter.use(apiAuth);
+
 apiRouter.get('/status', (req, res) => {
     res.json({
         success: true,
