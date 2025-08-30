@@ -13,6 +13,15 @@ RUN npm install
 # Copy the rest of the application source code
 COPY . .
 
+# Create a non-root user and group
+RUN addgroup -S node && adduser -S -G node node
+
+# Change ownership of the app directory
+RUN chown -R node:node /usr/src/app
+
+# Switch to the non-root user
+USER node
+
 # Make port 3000 available to the world outside this container
 EXPOSE 3000
 
