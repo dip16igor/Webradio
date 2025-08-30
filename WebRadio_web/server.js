@@ -9,7 +9,7 @@ const { body, validationResult } = require('express-validator');
 
 
 const app = express();
-app.set('trust proxy', true); // Trust the proxy
+app.set('trust proxy', 1); // Trust the first proxy
 
 // Security headers
 app.use(helmet({
