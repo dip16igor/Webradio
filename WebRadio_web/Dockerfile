@@ -13,9 +13,7 @@ RUN npm install
 # Copy the rest of the application source code
 COPY . .
 
-# Create a non-root user and group
-RUN addgroup -S node && adduser -S -G node node
-
+# The node image comes with a "node" user, so we just need to use it.
 # Change ownership of the app directory
 RUN chown -R node:node /usr/src/app
 
