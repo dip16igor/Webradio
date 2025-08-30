@@ -12,10 +12,7 @@ const app = express();
 app.set('trust proxy', 1); // Trust the first proxy
 
 // Security headers
-app.use(helmet({
-    strictTransportSecurity: false,
-    contentSecurityPolicy: false,
-}));
+app.use(helmet());
 
 // Middleware to parse JSON bodies
 app.use(express.json());
