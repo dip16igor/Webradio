@@ -89,7 +89,7 @@ client.on('message', (topic, message) => {
     const value = message.toString();
 
     let updated = false;
-    if (radioState[topicSuffix] !== undefined && radioState[topicSuffix] !== value) {
+    if (radioState[topicSuffix] !== value) {
         radioState[topicSuffix] = value;
         updated = true;
     }
