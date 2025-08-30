@@ -15,59 +15,61 @@ This is a web-based remote control for the ESP32 WebRadio project. It provides a
 
 - **Frontend**: HTML, CSS, JavaScript (no frameworks)
 - **Backend**: Node.js with Express.js
-- **Real-time Communication**: MQTT (via a Node.js MQTT bridge)
+- **Real-time Communication**: WebSocket (with a bridge to MQTT)
+- **Deployment**: Docker, Docker Compose, Traefik (recommended)
 
-## Setup and Configuration
+## Installation and Running (Docker)
 
-1.  **Install Dependencies**:
-    Navigate to the `WebRadio_web` directory and install the required Node.js packages:
+The project is designed to be run in a Docker container, which greatly simplifies deployment and enhances security.
+
+### Prerequisites
+- Docker
+- Docker Compose
+
+### Steps to Run
+
+1.  **Clone the repository** to your server.
+
+2.  **Create the configuration file** `.env` from the example:
     ```bash
-    npm install
+    cp .env.example .env
     ```
 
-2.  **Configure Environment Variables**:
-    Create a `.env` file in the `WebRadio_web` directory by copying the `.env.example` file. Then, edit the `.env` file to include your MQTT broker's URL, username, password, and a secret token for the web server.
+3.  **Configure the variables in `.env`**:
+    Open the `.env` file and set your values.
+    ```dotenv
+    # A secret token to access the WebSocket and API. Should be a long, complex, random string.
+    SECRET_TOKEN=your_super_secret_token
 
-    ```
-    SECRET_TOKEN=your_secret_token
-    MQTT_BROKER_URL=mqtt://your_broker_ip:1883
+    # The URL of your MQTT broker.
+    # If the broker is running on the same host as Docker, use host.docker.internal
+    MQTT_BROKER_URL=mqtt://host.docker.internal:1883
+
+    # Credentials for your MQTT connection (if required)
     MQTT_USER=your_mqtt_username
     MQTT_PASSWORD=your_mqtt_password
     ```
 
-3.  **Start the Server**:
-    Run the following command to start the web server:
+4.  **Build and run the container**:
+    Execute this command from the project's root folder:
     ```bash
-    node server.js
+    sudo docker compose up -d --build
     ```
+    The application will be available at the address you configured in your reverse proxy (e.g., Traefik).
 
-## Deployment (Linux VPS with systemd)
+## First Use and Authentication
 
-To run the web interface as a persistent service on a Linux VPS, you can use the provided `webradio-web.service` file.
+On your first visit to the site, the browser will prompt you for a secret token.
 
-1.  **Copy the service file** to the systemd directory on your VPS:
-    ```bash
-    sudo cp webradio-web.service /etc/systemd/system/
-    ```
+1.  Copy the value of `SECRET_TOKEN` from your `.env` file.
+2.  Paste it into the prompt that appears in the browser.
 
-2.  **Edit the service file** to match your project's path and user. You may need to change the `User`, `Group`, and `WorkingDirectory` directives.
+The browser will save the token for future sessions.
 
-3.  **Reload the systemd daemon** to recognize the new service:
-    ```bash
-    sudo systemctl daemon-reload
-    ```
+## Security
 
-4.  **Start the service**:
-    ```bash
-    sudo systemctl start webradio-web
-    ```
+The following security measures have been implemented in this project:
 
-5.  **Enable the service to start on boot**:
-    ```bash
-    sudo systemctl enable webradio-web
-    ```
-
-6.  **Check the status of the service**:
-    ```bash
-    sudo systemctl status webradio-web
-    ```
+- **Authentication**: All API and WebSocket endpoints are protected by a secret token.
+- **Container Isolation**: The application runs inside a Docker container as a non-root user (`node`) for improved security.
+- **Security Headers**: The `helmet` library is used to set standard security-related HTTP headers, helping to protect against common attacks like XSS and clickjacking.
