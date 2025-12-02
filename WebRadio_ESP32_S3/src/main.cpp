@@ -378,6 +378,7 @@ void callback(char *topic, byte *payload, unsigned int length)
     }
     if (message == "vol+") // VOL+
     {
+      PowerOnFast = 0; // Stop automatic volume increase
       vol = vol + 1;
       if (vol >= 21)
         vol = 21;
@@ -389,6 +390,7 @@ void callback(char *topic, byte *payload, unsigned int length)
     }
     if (message == "vol-") // VOL-
     {
+      PowerOnFast = 0; // Stop automatic volume increase
       vol = vol - 1;
       if (vol <= 0)
         vol = 0;
