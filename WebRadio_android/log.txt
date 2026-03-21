@@ -1,0 +1,124 @@
+2026-03-21 21:11:21.800 31681-31923 VRI[MainActivity]       com.dip16.webradio                   D  dispatchAppVisibility visible:true
+2026-03-21 21:11:21.816 31681-31681 VRI[MainActivity]       com.dip16.webradio                   D  setWindowStopped stopped:false
+2026-03-21 21:11:21.822 31681-31681 dip171                  com.dip16.webradio                   D  onStart()
+2026-03-21 21:11:21.826 31681-31714 dip17                   com.dip16.webradio                   D  try to connect to MQTT broker
+2026-03-21 21:11:21.826 31681-31714 dip17                   com.dip16.webradio                   D  my ID is paho105900992993004
+2026-03-21 21:11:21.846 31681-31681 dip171                  com.dip16.webradio                   D  onResume()
+2026-03-21 21:11:21.853 31681-31681 Quality                 com.dip16.webradio                   I  Skipped: false 0 cost 7.892384 refreshRate 16289237 bit true processName com.dip16.webradio
+2026-03-21 21:11:21.929 31681-31681 BufferQueueConsumer     com.dip16.webradio                   D  [](id:7bc100000001,api:0,p:-1,c:31681) connect: controlledByApp=false
+2026-03-21 21:11:21.929 31681-31681 IPCThreadState          com.dip16.webradio                   E  attemptIncStrongHandle(55): Not supported
+2026-03-21 21:11:21.931 31681-31681 VRI[MainActivity]       com.dip16.webradio                   D  registerCallbacksForSync syncBuffer=false
+2026-03-21 21:11:22.031 31681-31709 BLASTBufferQueue        com.dip16.webradio                   D  [VRI[MainActivity][com.dip16.webradio/com.dip16.webradio.MainActivity]#1](f:0,a:1) acquireNextBufferLocked size=1080x2400 mFrameNumber=1 applyTransaction=true mTimestamp=105901199461850(auto) mPendingTransactions.size=0 graphicBufferId=136068858904583 transform=0
+2026-03-21 21:11:22.031 31681-31709 VRI[MainActivity]       com.dip16.webradio                   D  Received frameCommittedCallback lastAttemptedDrawFrameNum=1 didProduceBuffer=true syncBuffer=false
+2026-03-21 21:11:22.031 31681-31681 VRI[MainActivity]       com.dip16.webradio                   D  draw finished.
+2026-03-21 21:11:22.033 31681-31681 Quality                 com.dip16.webradio                   I  Skipped: false 6 cost 109.392334 refreshRate 16357459 bit true processName com.dip16.webradio
+2026-03-21 21:11:22.059 31681-31681 VRI[MainActivity]       com.dip16.webradio                   D  onFocusEvent true
+2026-03-21 21:11:22.288 31681-31714 dip171                  com.dip16.webradio                   D  connected!
+2026-03-21 21:11:22.288 31681-27430 dip171                  com.dip16.webradio                   D  connectComplete to tcp://45.156.27.62:1883
+2026-03-21 21:11:22.336 31681-31681 Quality                 com.dip16.webradio                   I  Skipped: false 1 cost 21.741138 refreshRate 16290998 bit true processName com.dip16.webradio
+2026-03-21 21:11:22.823 31681-31681 Quality                 com.dip16.webradio                   I  Skipped: false 2 cost 35.962376 refreshRate 16298243 bit true processName com.dip16.webradio
+2026-03-21 21:11:22.834 31681-31714 dip171                  com.dip16.webradio                   I  request '?' sent
+2026-03-21 21:11:22.835 31681-27430 dip171                  com.dip16.webradio                   D  deliveryComplete. Token : org.eclipse.paho.client.mqttv3.MqttDeliveryToken@261af3c
+2026-03-21 21:11:22.915 31681-31681 Quality                 com.dip16.webradio                   I  Skipped: false 3 cost 61.10782 refreshRate 16666667 bit true processName com.dip16.webradio
+2026-03-21 21:11:22.977 31681-27134 dip171                  com.dip16.webradio                   D  State -> Power ON
+2026-03-21 21:11:22.977 31681-27430 dip171                  com.dip16.webradio                   D  State -> Power ON
+2026-03-21 21:11:23.064 31681-31681 Quality                 com.dip16.webradio                   I  Skipped: false 3 cost 50.155365 refreshRate 16292604 bit true processName com.dip16.webradio
+2026-03-21 21:11:23.069 31681-31681 OplusScrollToTopManager com.dip16.webradio                   D  com.dip16.webradio/com.dip16.webradio.MainActivity,This DecorView@e3ef872[MainActivity] change focus to true
+2026-03-21 21:11:23.079 31681-27134 dip171                  com.dip16.webradio                   D  Station -> 5 16BitFM iBEAT Channel
+2026-03-21 21:11:23.080 31681-27430 dip171                  com.dip16.webradio                   D  Station -> 5 16BitFM iBEAT Channel
+2026-03-21 21:11:23.148 31681-31681 Quality                 com.dip16.webradio                   I  Skipped: true 2 cost 35.1221 refreshRate 16331506 bit true processName com.dip16.webradio
+2026-03-21 21:11:23.150 31681-27134 dip171                  com.dip16.webradio                   D  Title -> Distant Fragment - Via Uniqueness (Outrageous Okona's Rmx)
+2026-03-21 21:11:23.150 31681-27430 dip171                  com.dip16.webradio                   D  Title -> Distant Fragment - Via Uniqueness (Outrageous Okona's Rmx)
+2026-03-21 21:11:23.151 31681-27430 dip171                  com.dip16.webradio                   D  Volume -> 12
+2026-03-21 21:11:23.152 31681-27134 dip171                  com.dip16.webradio                   D  Volume -> 12
+2026-03-21 21:11:23.157 31681-27430 dip171                  com.dip16.webradio                   D  Log -> STEREO 16 bit 44 kHz MP3 192 kb/s
+2026-03-21 21:11:23.157 31681-27134 dip171                  com.dip16.webradio                   D  Log -> STEREO 16 bit 44 kHz MP3 192 kb/s
+2026-03-21 21:11:23.159 31681-27430 dip17                   com.dip16.webradio                   D  Alarm -> 25200
+2026-03-21 21:11:23.159 31681-27134 dip17                   com.dip16.webradio                   D  Alarm -> 25200
+2026-03-21 21:11:23.159 31681-27134 dip17                   com.dip16.webradio                   D  7:00
+2026-03-21 21:11:23.160 31681-27430 dip17                   com.dip16.webradio                   D  7:00
+2026-03-21 21:11:23.266 31681-31681 Quality                 com.dip16.webradio                   I  Skipped: false 4 cost 71.61356 refreshRate 16328077 bit true processName com.dip16.webradio
+2026-03-21 21:11:23.346 31681-31714 dip171                  com.dip16.webradio                   I  request 's25200' sent
+2026-03-21 21:11:23.348 31681-27430 dip171                  com.dip16.webradio                   D  deliveryComplete. Token : org.eclipse.paho.client.mqttv3.MqttDeliveryToken@4094672
+2026-03-21 21:11:23.422 31681-31681 Quality                 com.dip16.webradio                   I  Skipped: false 2 cost 48.726974 refreshRate 16319371 bit true processName com.dip16.webradio
+2026-03-21 21:11:25.928 31681-31681 Quality                 com.dip16.webradio                   I  Skipped: false 3 cost 62.91401 refreshRate 16296659 bit true processName com.dip16.webradio
+2026-03-21 21:11:28.743 31681-31681 dip17                   com.dip16.webradio                   D  PRESS KEY!
+2026-03-21 21:11:28.743 31681-31681 dip17                   com.dip16.webradio                   D  Send message: vol-
+2026-03-21 21:11:28.826 31681-27430 dip171                  com.dip16.webradio                   D  deliveryComplete. Token : org.eclipse.paho.client.mqttv3.MqttDeliveryToken@362701f
+2026-03-21 21:11:28.833 31681-31681 Quality                 com.dip16.webradio                   I  Skipped: false 5 cost 84.04547 refreshRate 16289256 bit true processName com.dip16.webradio
+2026-03-21 21:11:28.921 31681-27134 dip171                  com.dip16.webradio                   D  Volume -> 11
+2026-03-21 21:11:28.922 31681-27430 dip171                  com.dip16.webradio                   D  Volume -> 11
+2026-03-21 21:11:29.010 31681-31681 Quality                 com.dip16.webradio                   I  Skipped: false 4 cost 66.64358 refreshRate 16284002 bit true processName com.dip16.webradio
+2026-03-21 21:11:29.960 31681-31681 dip17                   com.dip16.webradio                   D  PRESS KEY!
+2026-03-21 21:11:29.960 31681-31681 dip17                   com.dip16.webradio                   D  Send message: vol-
+2026-03-21 21:11:30.364 31681-27430 dip171                  com.dip16.webradio                   D  deliveryComplete. Token : org.eclipse.paho.client.mqttv3.MqttDeliveryToken@83c4417
+2026-03-21 21:11:30.370 31681-31681 Quality                 com.dip16.webradio                   I  Skipped: false 24 cost 414.42432 refreshRate 16666667 bit true processName com.dip16.webradio
+2026-03-21 21:11:30.448 31681-27134 dip171                  com.dip16.webradio                   D  Volume -> 10
+2026-03-21 21:11:30.449 31681-27430 dip171                  com.dip16.webradio                   D  Volume -> 10
+2026-03-21 21:11:30.472 31681-31681 Quality                 com.dip16.webradio                   I  Skipped: false 1 cost 29.787027 refreshRate 16286556 bit true processName com.dip16.webradio
+2026-03-21 21:11:30.572 31681-31681 Quality                 com.dip16.webradio                   I  Skipped: false 2 cost 32.58879 refreshRate 16280253 bit true processName com.dip16.webradio
+2026-03-21 21:11:31.220 31681-31681 dip17                   com.dip16.webradio                   D  PRESS KEY!
+2026-03-21 21:11:31.220 31681-31681 dip17                   com.dip16.webradio                   D  Send message: vol+
+2026-03-21 21:11:31.297 31681-27430 dip171                  com.dip16.webradio                   D  deliveryComplete. Token : org.eclipse.paho.client.mqttv3.MqttDeliveryToken@d0d9f0f
+2026-03-21 21:11:31.303 31681-31681 Quality                 com.dip16.webradio                   I  Skipped: false 4 cost 78.847244 refreshRate 16286299 bit true processName com.dip16.webradio
+2026-03-21 21:11:31.381 31681-27430 dip171                  com.dip16.webradio                   D  Volume -> 11
+2026-03-21 21:11:31.381 31681-27134 dip171                  com.dip16.webradio                   D  Volume -> 11
+2026-03-21 21:11:31.398 31681-31681 Quality                 com.dip16.webradio                   I  Skipped: false 1 cost 27.6069 refreshRate 16284443 bit true processName com.dip16.webradio
+2026-03-21 21:11:31.506 31681-31681 Quality                 com.dip16.webradio                   I  Skipped: false 2 cost 37.563416 refreshRate 16274259 bit true processName com.dip16.webradio
+2026-03-21 21:11:31.934 31681-31681 Quality                 com.dip16.webradio                   I  Skipped: false 4 cost 74.04108 refreshRate 16307293 bit true processName com.dip16.webradio
+2026-03-21 21:11:34.375 31681-31681 VRI[MainActivity]       com.dip16.webradio                   D  onFocusEvent false
+2026-03-21 21:11:35.029 31681-16190 VRI[MainActivity]       com.dip16.webradio                   D  dispatchAppVisibility visible:false
+2026-03-21 21:11:35.041 31681-31681 dip171                  com.dip16.webradio                   D  onPause()
+2026-03-21 21:11:35.056 31681-31681 OpenGLRenderer          com.dip16.webradio                   D  RenderProxy::destroy: this=0xb4000073bbef9000, mContext=0xb4000073bbf64e40
+2026-03-21 21:11:35.056 31681-31709 OpenGLRenderer          com.dip16.webradio                   D  SkiaOpenGLPipeline::setSurface: this=0xb4000073bbe47e00, surface=NULL
+2026-03-21 21:11:35.073 31681-31681 BLASTBufferQueue        com.dip16.webradio                   D  [VRI[MainActivity][com.dip16.webradio/com.dip16.webradio.MainActivity]#1](f:0,a:1) destructor()
+2026-03-21 21:11:35.073 31681-31681 BufferQueueConsumer     com.dip16.webradio                   D  [VRI[MainActivity][com.dip16.webradio/com.dip16.webradio.MainActivity]#1(BLAST Consumer)1](id:7bc100000001,api:0,p:-1,c:31681) disconnect
+2026-03-21 21:11:35.076 31681-31681 VRI[MainActivity]       com.dip16.webradio                   D  setWindowStopped stopped:true
+2026-03-21 21:11:35.077 31681-31681 dip171                  com.dip16.webradio                   D  onStop()
+2026-03-21 21:11:35.129 31681-31681 dip171                  com.dip16.webradio                   D  Disconnected from MQTT broker and client closed.
+2026-03-21 21:11:35.168 31681-31709 GED                     com.dip16.webradio                   I  ged_boost_gpu_freq, level 100, eOrigin 2, final_idx 42, oppidx_max 42, oppidx_min 0
+2026-03-21 21:11:35.168 31681-31709 GED                     com.dip16.webradio                   I  ged_boost_gpu_freq, level 100, eOrigin 2, final_idx 42, oppidx_max 42, oppidx_min 0
+2026-03-21 21:11:35.270 31681-31691 MediaPlayer             com.dip16.webradio                   D  finalize() native_finalize called
+2026-03-21 21:11:35.272 31681-31691 MediaPlayer-JNI         com.dip16.webradio                   W  MediaPlayer finalized without being released
+2026-03-21 21:11:35.317 31681-31691 MediaPlayer             com.dip16.webradio                   D  finalize() native_finalize finished
+2026-03-21 21:11:35.317 31681-31691 MediaPlayer             com.dip16.webradio                   D  finalize() native_finalize called
+2026-03-21 21:11:35.317 31681-31691 MediaPlayer-JNI         com.dip16.webradio                   W  MediaPlayer finalized without being released
+2026-03-21 21:11:35.343 31681-31691 MediaPlayer             com.dip16.webradio                   D  finalize() native_finalize finished
+2026-03-21 21:11:35.346 31681-31691 MediaPlayer             com.dip16.webradio                   D  finalize() native_finalize called
+2026-03-21 21:11:35.346 31681-31691 MediaPlayer-JNI         com.dip16.webradio                   W  MediaPlayer finalized without being released
+2026-03-21 21:11:35.358 31681-31691 MediaPlayer             com.dip16.webradio                   D  finalize() native_finalize finished
+2026-03-21 21:11:35.378 31681-31681 OplusScrollToTopManager com.dip16.webradio                   D  com.dip16.webradio/com.dip16.webradio.MainActivity,This DecorView@e3ef872[MainActivity] change focus to false
+2026-03-21 21:11:38.110 31681-31681 ActivityThread          com.dip16.webradio                   D  do gfx trim 40 success
+2026-03-21 21:11:38.110 31681-31709 GED                     com.dip16.webradio                   I  ged_boost_gpu_freq, level 100, eOrigin 2, final_idx 42, oppidx_max 42, oppidx_min 0
+2026-03-21 21:13:36.946 31681-27126 dip171                  com.dip16.webradio                   E  Connection lost to tcp://45.156.27.62:1883  Connection lost (32109) - java.io.EOFException
+2026-03-21 21:13:36.952 31681-27126 dip17                   com.dip16.webradio                   D  try to connect to MQTT broker
+2026-03-21 21:13:36.952 31681-27126 dip17                   com.dip16.webradio                   D  my ID is paho106036114891704
+2026-03-21 21:13:37.427 31681-27126 dip171                  com.dip16.webradio                   D  connected!
+2026-03-21 21:13:37.428 31681-29939 dip171                  com.dip16.webradio                   D  connectComplete to tcp://45.156.27.62:1883
+2026-03-21 21:13:37.973 31681-27126 dip171                  com.dip16.webradio                   I  request '?' sent
+2026-03-21 21:13:37.974 31681-29939 dip171                  com.dip16.webradio                   D  deliveryComplete. Token : org.eclipse.paho.client.mqttv3.MqttDeliveryToken@a5a21f6
+2026-03-21 21:13:38.148 31681-29939 dip171                  com.dip16.webradio                   D  State -> Power ON
+2026-03-21 21:13:38.223 31681-29939 dip171                  com.dip16.webradio                   D  Station -> 5 16BitFM iBEAT Channel
+2026-03-21 21:13:38.297 31681-29939 dip171                  com.dip16.webradio                   D  Title -> Distant Fragment - Via Uniqueness (Outrageous Okona's Rmx)
+2026-03-21 21:13:38.298 31681-29939 dip171                  com.dip16.webradio                   D  Volume -> 11
+2026-03-21 21:13:38.302 31681-29939 dip171                  com.dip16.webradio                   D  Log -> STEREO 16 bit 44 kHz MP3 192 kb/s
+2026-03-21 21:13:38.304 31681-29939 dip17                   com.dip16.webradio                   D  Alarm -> 25200
+2026-03-21 21:13:38.305 31681-29939 dip17                   com.dip16.webradio                   D  7:00
+2026-03-21 21:13:38.850 31681-31714 dip171                  com.dip16.webradio                   I  request 's25200' sent
+2026-03-21 21:13:38.852 31681-29939 dip171                  com.dip16.webradio                   D  deliveryComplete. Token : org.eclipse.paho.client.mqttv3.MqttDeliveryToken@cfe6782
+2026-03-21 21:15:12.846 31681-29935 dip171                  com.dip16.webradio                   E  Connection lost to tcp://45.156.27.62:1883  Connection lost (32109) - java.io.EOFException
+2026-03-21 21:15:12.848 31681-29935 dip17                   com.dip16.webradio                   D  try to connect to MQTT broker
+2026-03-21 21:15:12.848 31681-29935 dip17                   com.dip16.webradio                   D  my ID is paho106132015205864
+2026-03-21 21:15:13.362 31681-29935 dip171                  com.dip16.webradio                   D  connected!
+2026-03-21 21:15:13.362 31681-31292 dip171                  com.dip16.webradio                   D  connectComplete to tcp://45.156.27.62:1883
+2026-03-21 21:15:13.910 31681-29935 dip171                  com.dip16.webradio                   I  request '?' sent
+2026-03-21 21:15:13.910 31681-31292 dip171                  com.dip16.webradio                   D  deliveryComplete. Token : org.eclipse.paho.client.mqttv3.MqttDeliveryToken@292eee7
+2026-03-21 21:15:14.027 31681-31292 dip171                  com.dip16.webradio                   D  State -> Power ON
+2026-03-21 21:15:14.098 31681-31292 dip171                  com.dip16.webradio                   D  Station -> 5 16BitFM iBEAT Channel
+2026-03-21 21:15:14.099 31681-31292 dip171                  com.dip16.webradio                   D  Title -> Distant Fragment - Via Uniqueness (Outrageous Okona's Rmx)
+2026-03-21 21:15:14.100 31681-31292 dip171                  com.dip16.webradio                   D  Volume -> 11
+2026-03-21 21:15:14.103 31681-31292 dip171                  com.dip16.webradio                   D  Log -> STEREO 16 bit 44 kHz MP3 192 kb/s
+2026-03-21 21:15:14.103 31681-31292 dip17                   com.dip16.webradio                   D  Alarm -> 25200
+2026-03-21 21:15:14.104 31681-31292 dip17                   com.dip16.webradio                   D  7:00
+2026-03-21 21:15:14.443 31681-31714 dip171                  com.dip16.webradio                   I  request 's25200' sent
+2026-03-21 21:15:14.445 31681-31292 dip171                  com.dip16.webradio                   D  deliveryComplete. Token : org.eclipse.paho.client.mqttv3.MqttDeliveryToken@2159283

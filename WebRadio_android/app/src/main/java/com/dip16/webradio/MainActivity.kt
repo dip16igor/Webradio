@@ -87,6 +87,7 @@ private val work_mode = listOf("Kusa", "Chel")
 class MainActivity : ComponentActivity() {
 
     private lateinit var client: MqttClient
+    @Volatile private var isAppActive = false
 
     private val station = mutableStateOf("")
     private val title = mutableStateOf("")
@@ -134,6 +135,7 @@ class MainActivity : ComponentActivity() {
     override fun onStart() {
         super.onStart()
         Log.d("dip171", "onStart()")
+        isAppActive = true
         CoroutineScope(Dispatchers.IO).launch {
             // Connecting to MQTT and subscribing to the topic
             connectToMQTT()
@@ -154,6 +156,7 @@ class MainActivity : ComponentActivity() {
     override fun onStop() {
         super.onStop()
         Log.d("dip171", "onStop()")
+        isAppActive = false
         // Disconnecting from MQTT
         disconnectFromMQTT()
     }
@@ -193,7 +196,11 @@ class MainActivity : ComponentActivity() {
                     connectionState.value = "Connection LOST.."
                     Log.e("dip171", "Connection lost to ${Secrets.MQTT_BROKER_URL}  $cause")
 
-                    connectToMQTT()
+                    if (isAppActive) {
+                        connectToMQTT()
+                    } else {
+                        Log.d("dip171", "App is in background, skipping reconnect")
+                    }
                 }
 
                 override fun messageArrived(topic: String?, message: MqttMessage?) {
