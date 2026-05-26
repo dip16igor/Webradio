@@ -11,7 +11,7 @@ services:
       - "host.docker.internal:host-gateway"
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.webradio.rule=Host(`webradio.dip16.freemyip.com`)"
+      - "traefik.http.routers.webradio.rule=Host(`webradio.dip17.freemyip.com`)"
       - "traefik.http.routers.webradio.tls=true"
       - "traefik.http.routers.webradio.entrypoints=websecure"
       - "traefik.http.routers.webradio.tls.certresolver=mytlschallenge"

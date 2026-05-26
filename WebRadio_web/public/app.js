@@ -1,7 +1,8 @@
 document.addEventListener('DOMContentLoaded', () => {
 
     // --- CONFIGURATION ---
-    const API_BASE_PATH = 'api/radio';
+    const BASE_PATH = window.location.pathname.replace(/\/$/, '');
+    const API_BASE_PATH = `${BASE_PATH}/api/radio`;
     const TOTAL_STATIONS = 78;
     const STATION_ITEM_HEIGHT = 50; // Corresponds to station-item height in CSS
     const RECONNECT_INTERVAL_MS = 5000;
@@ -122,18 +123,17 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- WEBSOCKET ---
     const getWebSocketURL = () => {
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-        // We will now prompt the user for the token
         const token = localStorage.getItem('secret_token');
         if (!token) {
             const userToken = prompt('Please enter the secret token');
             if (userToken) {
                 localStorage.setItem('secret_token', userToken);
-                return `${protocol}//${window.location.host}/ws?token=${userToken}`;
+                return `${protocol}//${window.location.host}${BASE_PATH}/ws?token=${userToken}`;
             } else {
                 return null;
             }
         }
-        return `${protocol}//${window.location.host}/ws?token=${token}`;
+        return `${protocol}//${window.location.host}${BASE_PATH}/ws?token=${token}`;
     };
 
     const connect = () => {
