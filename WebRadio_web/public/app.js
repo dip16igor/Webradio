@@ -94,6 +94,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let stationData = FALLBACK_STATIONS;
     let stationListVersion = 0;
     let TOTAL_STATIONS = stationData.length;
+    let lastStationsJson = ''; // raw payload of the last applied station list (dedupe WS frames)
 
     // --- DOM ELEMENTS ---
     const stateEl = document.getElementById('state');
@@ -166,8 +167,11 @@ document.addEventListener('DOMContentLoaded', () => {
             try {
                 const message = JSON.parse(event.data);
                 if (message.type === 'statusUpdate') {
-                    // The server broadcasts the station list on {prefix}/Stations; refresh the wheel live
-                    if (message.data && typeof message.data.Stations === 'string') {
+                    // The server broadcasts the full radioState on every MQTT change, including the
+                    // station list. Only rebuild the wheel when the list payload actually changed,
+                    // otherwise the wheel redraws itself every few seconds.
+                    if (message.data && typeof message.data.Stations === 'string'
+                        && message.data.Stations !== lastStationsJson) {
                         try {
                             const parsed = JSON.parse(message.data.Stations);
                             if (parsed && Array.isArray(parsed.stations) && parsed.stations.length > 0) {
@@ -199,10 +203,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- STATION LIST ---
     const applyStationList = (list) => {
+        const prevCount = TOTAL_STATIONS;
+        const prevScrollTop = stationSelector.scrollTop;
         stationData = list.stations;
         stationListVersion = list.version || stationListVersion;
         TOTAL_STATIONS = stationData.length;
+        lastStationsJson = JSON.stringify(list);
         createStationWheel();
+        // Keep the scroll position when the list size did not change; otherwise reset to the top
+        if (TOTAL_STATIONS === prevCount && prevScrollTop > 0) {
+            stationSelector.scrollTop = prevScrollTop;
+        }
         updateSelectedStation(false);
         console.log(`Station list updated: ${TOTAL_STATIONS} stations (version ${stationListVersion})`);
     };
