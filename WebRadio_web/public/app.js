@@ -1,7 +1,8 @@
 document.addEventListener('DOMContentLoaded', () => {
 
     // --- CONFIGURATION ---
-    const BASE_PATH = window.location.pathname.replace(/\/$/, '');
+    // Strip a trailing page filename so this works at /webradio/, /webradio/index.html, and /
+    const BASE_PATH = window.location.pathname.replace(/\/[^/]*$/, '').replace(/\/$/, '');
     const API_BASE_PATH = `${BASE_PATH}/api/radio`;
     const STATION_ITEM_HEIGHT = 50; // Corresponds to station-item height in CSS
     const RECONNECT_INTERVAL_MS = 5000;
