@@ -45,6 +45,7 @@ A web-based remote control for the radio, accessible from any device with a web 
 - Control power, volume, and station selection.
 - Set and cancel alarms.
 - A responsive interface that works on both desktop and mobile browsers.
+- **Station Manager:** a single station list edited on the web site and pushed to the ESP32 and Android app over MQTT (see `WebRadio_web/data/stations.json`).
 
 For setup and usage instructions, please refer to the README in the `WebRadio_web` directory.
 

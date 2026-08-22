@@ -1,0 +1,401 @@
+{
+  "version": 1,
+  "updatedAt": "2026-08-22T09:53:56.385861+00:00",
+  "stations": [
+    {
+      "name": "Silver Rain",
+      "genre": "radio",
+      "url": "http://silverrain.hostingradio.ru/silver128.mp3"
+    },
+    {
+      "name": "Relax",
+      "genre": "relax",
+      "url": "https://live.radiospinner.com/smthlng-64"
+    },
+    {
+      "name": "Relax FM",
+      "genre": "relax",
+      "url": "http://ic7.101.ru:8000/v13_1"
+    },
+    {
+      "name": "RFM Queen",
+      "genre": "rock",
+      "url": "http://rmfstream1.interia.pl:8000/rmf_queen"
+    },
+    {
+      "name": "ProBeat FM",
+      "genre": "electronic",
+      "url": "http://16bitfm.com:8000/main_mp3_128"
+    },
+    {
+      "name": "Cafe_off",
+      "genre": "radio",
+      "url": "http://cafe.amgradio.ru/Cafe"
+    },
+    {
+      "name": "chantefrance70s",
+      "genre": "radio",
+      "url": "http://chantefrance70s.ice.infomaniak.ch/chantefrance70s-96.aac"
+    },
+    {
+      "name": "Prodigy",
+      "genre": "electronic",
+      "url": "http://dfm.hostingradio.ru/prodigy96.aacp"
+    },
+    {
+      "name": "blackstation",
+      "genre": "electronic",
+      "url": "http://getradio.me/blvckstation"
+    },
+    {
+      "name": "Ibiza Radio",
+      "genre": "electronic",
+      "url": "http://ibizaglobalradio.streaming-pro.com:8024/stream"
+    },
+    {
+      "name": "Kiss Kiss Rock",
+      "genre": "rock",
+      "url": "http://ice06.fluidstream.net:8080/kk_rock.mp3"
+    },
+    {
+      "name": "Relax web radio",
+      "genre": "relax",
+      "url": "http://iis.ge:8000/relax.mp3"
+    },
+    {
+      "name": "prog",
+      "genre": "rock",
+      "url": "http://jfm1.hostingradio.ru:14536/prog.mp3"
+    },
+    {
+      "name": "Smooth Jazz",
+      "genre": "jazz",
+      "url": "http://jfm1.hostingradio.ru:14536/sjstream.mp3"
+    },
+    {
+      "name": "Spokoinoe Radio",
+      "genre": "relax",
+      "url": "http://listen1.myradio24.com:9000/6262"
+    },
+    {
+      "name": "Enigmatic robot",
+      "genre": "lounge",
+      "url": "http://listen2.myradio24.com:9000/8226"
+    },
+    {
+      "name": "COVER",
+      "genre": "rock",
+      "url": "http://maximum.hostingradio.ru/maxcover96.aacp"
+    },
+    {
+      "name": "PUNK",
+      "genre": "rock",
+      "url": "http://maximum.hostingradio.ru/maxpunk96.aacp"
+    },
+    {
+      "name": "Nirvana",
+      "genre": "rock",
+      "url": "http://maximum.hostingradio.ru/nirvana96.aacp"
+    },
+    {
+      "name": "JAZZ",
+      "genre": "jazz",
+      "url": "http://montecarlo.hostingradio.ru/mcjazz96.aacp"
+    },
+    {
+      "name": "NRJ LOUNGE",
+      "genre": "lounge",
+      "url": "http://nrj.de/lounge"
+    },
+    {
+      "name": "90s",
+      "genre": "radio",
+      "url": "http://prmstrm.1.fm:8000/90s"
+    },
+    {
+      "name": "Adore jazz",
+      "genre": "jazz",
+      "url": "http://prmstrm.1.fm:8000/ajazz"
+    },
+    {
+      "name": "Ambient Psychill",
+      "genre": "ambient",
+      "url": "http://prmstrm.1.fm:8000/ambientpsy"
+    },
+    {
+      "name": "Bossa Nova",
+      "genre": "radio",
+      "url": "http://prmstrm.1.fm:8000/bossanova"
+    },
+    {
+      "name": "Brazilian Birds",
+      "genre": "nature",
+      "url": "http://prmstrm.1.fm:8000/brazilianbirds"
+    },
+    {
+      "name": "Classic Country",
+      "genre": "radio",
+      "url": "http://prmstrm.1.fm:8000/ccountry"
+    },
+    {
+      "name": "Chillout Lounge",
+      "genre": "lounge",
+      "url": "http://prmstrm.1.fm:8000/chilloutlounge"
+    },
+    {
+      "name": "Costa Delmar",
+      "genre": "lounge",
+      "url": "http://prmstrm.1.fm:8000/costadelmarchillout"
+    },
+    {
+      "name": "High Voltage",
+      "genre": "rock",
+      "url": "http://prmstrm.1.fm:8000/highvoltage"
+    },
+    {
+      "name": "Italia On Air",
+      "genre": "radio",
+      "url": "http://prmstrm.1.fm:8000/kidsfm"
+    },
+    {
+      "name": "America's Best Ballads",
+      "genre": "radio",
+      "url": "http://prmstrm.1.fm:8000/onelive"
+    },
+    {
+      "name": "Radio Gaia",
+      "genre": "relax",
+      "url": "http://prmstrm.1.fm:8000/radiogaia"
+    },
+    {
+      "name": "Rock Classics",
+      "genre": "rock",
+      "url": "http://prmstrm.1.fm:8000/rockclassics"
+    },
+    {
+      "name": "Smooth Jazz",
+      "genre": "jazz",
+      "url": "http://prmstrm.1.fm:8000/smoothjazz"
+    },
+    {
+      "name": "Spa",
+      "genre": "relax",
+      "url": "http://prmstrm.1.fm:8000/spa"
+    },
+    {
+      "name": "186mph HQ",
+      "genre": "electronic",
+      "url": "http://radio.promodj.com:8000/186mph-192"
+    },
+    {
+      "name": "Mini HQ",
+      "genre": "electronic",
+      "url": "http://radio.promodj.com:8000/mini-192"
+    },
+    {
+      "name": "Ambient",
+      "genre": "ambient",
+      "url": "http://radiorecord.hostingradio.ru/ambient96.aacp"
+    },
+    {
+      "name": "Spacemusic",
+      "genre": "ambient",
+      "url": "http://79.111.119.111:8004/spacemusic"
+    },
+    {
+      "name": "Sector Space",
+      "genre": "ambient",
+      "url": "http://89.223.45.5:8000/space-160"
+    },
+    {
+      "name": "Cadillac",
+      "genre": "radio",
+      "url": "http://radiorecord.hostingradio.ru/cadillac96.aacp"
+    },
+    {
+      "name": "Chil",
+      "genre": "lounge",
+      "url": "http://radiorecord.hostingradio.ru/chil96.aacp"
+    },
+    {
+      "name": "Chillhouse",
+      "genre": "lounge",
+      "url": "http://radiorecord.hostingradio.ru/chillhouse96.aacp"
+    },
+    {
+      "name": "Ibiza",
+      "genre": "electronic",
+      "url": "http://radiorecord.hostingradio.ru/ibiza96.aacp"
+    },
+    {
+      "name": "Summer Lounge",
+      "genre": "lounge",
+      "url": "http://radiorecord.hostingradio.ru/summerlounge96.aacp"
+    },
+    {
+      "name": "Lounge",
+      "genre": "jazz",
+      "url": "http://rautemusik-de-hz-fal-stream12.radiohost.de/lounge"
+    },
+    {
+      "name": "Real FM Radio Relax",
+      "genre": "relax",
+      "url": "http://realfm.net:9500/rfr"
+    },
+    {
+      "name": "rouge-rockpop-high",
+      "genre": "rock",
+      "url": "http://rouge-rockpop.ice.infomaniak.ch/rouge-rockpop-high.mp3"
+    },
+    {
+      "name": "Aplus.FM Relax",
+      "genre": "relax",
+      "url": "http://s.aplus.fm:9000/aplus_relax_128"
+    },
+    {
+      "name": "Kiss FM",
+      "genre": "rock",
+      "url": "http://s7.radioheart.ru:8015/nonstop"
+    },
+    {
+      "name": "1.FM - Kids FM",
+      "genre": "radio",
+      "url": "http://sc-kidsfm.1.fm:10112/"
+    },
+    {
+      "name": "bigfm-sunsetlounge",
+      "genre": "lounge",
+      "url": "http://streams.bigfm.de/bigfm-sunsetlounge-128-mp3"
+    },
+    {
+      "name": "ZaycevFM Relax",
+      "genre": "relax",
+      "url": "http://zaycevfm.cdnvideo.ru/ZaycevFM_relax_256.mp3"
+    },
+    {
+      "name": "Zvuki",
+      "genre": "nature",
+      "url": "http://zvuki.amgradio.ru/Zvuki"
+    },
+    {
+      "name": "Relax Morning Birds",
+      "genre": "nature",
+      "url": "https://ice6.abradio.cz/relax-morning-birds128.mp3"
+    },
+    {
+      "name": "90s Rock Hits",
+      "genre": "rock",
+      "url": "https://live.radiospinner.com/90srckhts-64"
+    },
+    {
+      "name": "Bird Sounds",
+      "genre": "nature",
+      "url": "https://live.radiospinner.com/bird-sounds-64"
+    },
+    {
+      "name": "BL Rock",
+      "genre": "rock",
+      "url": "https://live.radiospinner.com/blsrck-64"
+    },
+    {
+      "name": "CDMR",
+      "genre": "lounge",
+      "url": "https://live.radiospinner.com/cdmr-64"
+    },
+    {
+      "name": "Complete Relaxation",
+      "genre": "relax",
+      "url": "https://live.radiospinner.com/complete-relaxation-64"
+    },
+    {
+      "name": "LFCH",
+      "genre": "jazz",
+      "url": "https://live.radiospinner.com/lfch-64"
+    },
+    {
+      "name": "Lounge",
+      "genre": "lounge",
+      "url": "https://live.radiospinner.com/lounge-64"
+    },
+    {
+      "name": "Mellow Jazz",
+      "genre": "jazz",
+      "url": "https://live.radiospinner.com/mellow-jazz-64"
+    },
+    {
+      "name": "Nature",
+      "genre": "nature",
+      "url": "https://live.radiospinner.com/nature-64"
+    },
+    {
+      "name": "NGMTCBR",
+      "genre": "relax",
+      "url": "https://live.radiospinner.com/ngmtcbr-64"
+    },
+    {
+      "name": "NWAGEWV",
+      "genre": "lounge",
+      "url": "https://live.radiospinner.com/nwagewv-64"
+    },
+    {
+      "name": "Smooth Jazz",
+      "genre": "jazz",
+      "url": "https://live.radiospinner.com/smooth-jazz-64"
+    },
+    {
+      "name": "~~ Море ~~",
+      "genre": "nature",
+      "url": "https://live.radiospinner.com/sslp-64"
+    },
+    {
+      "name": "Blues N Rock",
+      "genre": "rock",
+      "url": "https://ouifmbluesnrock.ice.infomaniak.ch/ouifmbluesnrock-128.mp3"
+    },
+    {
+      "name": "LoFi Radio",
+      "genre": "lounge",
+      "url": "https://play.lofiradio.ru:8000/mp3_320"
+    },
+    {
+      "name": "VoltageFM GOLD",
+      "genre": "radio",
+      "url": "https://radio.voltagefm.ru:9009/VoltageGOLD_64_aac"
+    },
+    {
+      "name": "Mixdance Relax",
+      "genre": "relax",
+      "url": "https://stream.mixadance.fm/relax"
+    },
+    {
+      "name": "Relax Cafe",
+      "genre": "relax",
+      "url": "https://stream.relaxfm.ee/cafe_HD"
+    },
+    {
+      "name": "Sleep Kids",
+      "genre": "relax",
+      "url": "https://streaming.positivity.radio/pr/sleepkids/icecast.audio"
+    },
+    {
+      "name": "WebRadio0007",
+      "genre": "relax",
+      "url": "https://webradio0007.ice.infomaniak.ch/webradio0007-128.mp3"
+    },
+    {
+      "name": "YOGA",
+      "genre": "relax",
+      "url": "http://play.yogaradio.org.ua:8000/YOGAradio"
+    },
+    {
+      "name": "dip16",
+      "genre": "rock",
+      "url": "http://80.211.205.234:8001/radio192"
+    },
+    {
+      "name": "dip16 128",
+      "genre": "rock",
+      "url": "http://80.211.205.234:8001/radio128"
+    }
+  ]
+}

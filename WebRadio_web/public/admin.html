@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ESP32 WebRadio - Station Manager</title>
+    <link rel="stylesheet" href="style.css">
+    <style>
+        .admin-toolbar {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+
+        .admin-toolbar .spacer {
+            flex: 1;
+        }
+
+        table#station-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 14px;
+        }
+
+        #station-table th,
+        #station-table td {
+            border: 1px solid #444;
+            padding: 4px 6px;
+            text-align: left;
+        }
+
+        #station-table th {
+            background: #222;
+            color: #fff;
+            position: sticky;
+            top: 0;
+        }
+
+        #station-table input {
+            width: 100%;
+            box-sizing: border-box;
+            background: #1a1a1a;
+            color: #eee;
+            border: 1px solid #555;
+            border-radius: 4px;
+            padding: 4px 6px;
+            font-size: 13px;
+        }
+
+        #station-table .num {
+            width: 40px;
+            text-align: center;
+            color: #aaa;
+        }
+
+        #station-table .col-name {
+            min-width: 160px;
+        }
+
+        #station-table .col-url {
+            min-width: 320px;
+        }
+
+        #station-table .col-genre {
+            min-width: 110px;
+        }
+
+        #station-table .col-actions {
+            width: 110px;
+            white-space: nowrap;
+        }
+
+        .icon-btn {
+            background: #333;
+            color: #fff;
+            border: 1px solid #555;
+            border-radius: 4px;
+            padding: 4px 8px;
+            cursor: pointer;
+            font-size: 13px;
+        }
+
+        .icon-btn:hover {
+            background: #444;
+        }
+
+        .icon-btn.danger {
+            background: #7a1f1f;
+            border-color: #a33;
+        }
+
+        .icon-btn:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+
+        #status {
+            margin: 10px 0;
+            padding: 8px 12px;
+            border-radius: 4px;
+            display: none;
+        }
+
+        #status.ok {
+            display: block;
+            background: #143d20;
+            color: #7ddb9b;
+        }
+
+        #status.err {
+            display: block;
+            background: #4a1414;
+            color: #f2a1a1;
+        }
+
+        #meta {
+            color: #999;
+            font-size: 13px;
+            margin-bottom: 10px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+
+        <h2>Station Manager</h2>
+        <p><a href="index.html">&larr; Back to radio control</a></p>
+
+        <div id="meta">Loading station list...</div>
+
+        <div class="admin-toolbar">
+            <button id="btn-add" class="icon-btn">+ Add station</button>
+            <button id="btn-save" class="icon-btn">Save</button>
+            <button id="btn-export" class="icon-btn">Export JSON</button>
+            <label class="icon-btn" for="import-file">Import JSON</label>
+            <input type="file" id="import-file" accept="application/json" style="display:none">
+            <span class="spacer"></span>
+            <button id="btn-reload" class="icon-btn">Reload</button>
+        </div>
+
+        <div id="status"></div>
+
+        <div style="max-height: 70vh; overflow-y: auto;">
+            <table id="station-table">
+                <thead>
+                    <tr>
+                        <th class="num">#</th>
+                        <th class="col-name">Name</th>
+                        <th class="col-url">URL</th>
+                        <th class="col-genre">Genre</th>
+                        <th class="col-actions">Actions</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
+
+        <datalist id="genre-list"></datalist>
+
+    </div>
+
+    <script src="admin.js"></script>
+</body>
+
+</html>

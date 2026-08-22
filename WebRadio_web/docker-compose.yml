@@ -9,6 +9,9 @@ services:
       - root_default
     extra_hosts:
       - "host.docker.internal:host-gateway"
+    volumes:
+      # Persistent station list (written by the admin page via PUT /api/stations)
+      - ./data:/usr/src/app/data
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.webradio.rule=Host(`webradio.dip17.freemyip.com`)"

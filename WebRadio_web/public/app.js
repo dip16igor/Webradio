@@ -3,11 +3,11 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- CONFIGURATION ---
     const BASE_PATH = window.location.pathname.replace(/\/$/, '');
     const API_BASE_PATH = `${BASE_PATH}/api/radio`;
-    const TOTAL_STATIONS = 78;
     const STATION_ITEM_HEIGHT = 50; // Corresponds to station-item height in CSS
     const RECONNECT_INTERVAL_MS = 5000;
 
-    const stationData = [
+    // Fallback snapshot of data/stations.json (v1, 79 stations) - keep in sync
+    const FALLBACK_STATIONS = [
         { name: "Silver Rain", genre: "radio" },
         { name: "Relax", genre: "relax" },
         { name: "Relax FM", genre: "relax" },
@@ -83,8 +83,16 @@ document.addEventListener('DOMContentLoaded', () => {
         { name: "Mixdance Relax", genre: "relax" },
         { name: "Relax Cafe", genre: "relax" },
         { name: "Sleep Kids", genre: "relax" },
-        { name: "WebRadio0007", genre: "relax" }
+        { name: "WebRadio0007", genre: "relax" },
+        { name: "YOGA", genre: "relax" },
+        { name: "dip16", genre: "rock" },
+        { name: "dip16 128", genre: "rock" }
     ];
+
+    // Station list, loaded from the server (GET /api/radio/stations); fallback above is used offline.
+    let stationData = FALLBACK_STATIONS;
+    let stationListVersion = 0;
+    let TOTAL_STATIONS = stationData.length;
 
     // --- DOM ELEMENTS ---
     const stateEl = document.getElementById('state');
@@ -157,6 +165,17 @@ document.addEventListener('DOMContentLoaded', () => {
             try {
                 const message = JSON.parse(event.data);
                 if (message.type === 'statusUpdate') {
+                    // The server broadcasts the station list on {prefix}/Stations; refresh the wheel live
+                    if (message.data && typeof message.data.Stations === 'string') {
+                        try {
+                            const parsed = JSON.parse(message.data.Stations);
+                            if (parsed && Array.isArray(parsed.stations) && parsed.stations.length > 0) {
+                                applyStationList(parsed);
+                            }
+                        } catch (e) {
+                            console.error('Failed to parse station list from WebSocket:', e);
+                        }
+                    }
                     updateStatusUI(message.data);
                 }
             } catch (error) {
@@ -175,6 +194,32 @@ document.addEventListener('DOMContentLoaded', () => {
             console.error('WebSocket error:', error);
             socket.close(); // This will trigger the onclose handler for reconnection
         };
+    };
+
+    // --- STATION LIST ---
+    const applyStationList = (list) => {
+        stationData = list.stations;
+        stationListVersion = list.version || stationListVersion;
+        TOTAL_STATIONS = stationData.length;
+        createStationWheel();
+        updateSelectedStation(false);
+        console.log(`Station list updated: ${TOTAL_STATIONS} stations (version ${stationListVersion})`);
+    };
+
+    const loadStations = async () => {
+        const token = localStorage.getItem('secret_token');
+        try {
+            const res = await fetch(`${API_BASE_PATH}/stations`, {
+                headers: token ? { 'X-Auth-Token': token } : {}
+            });
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            const json = await res.json();
+            if (json.success && json.data && Array.isArray(json.data.stations) && json.data.stations.length > 0) {
+                applyStationList(json.data);
+            }
+        } catch (err) {
+            console.warn('Failed to load station list from server, using fallback:', err);
+        }
     };
 
     // --- API HELPERS ---
@@ -357,8 +402,9 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     const init = () => {
-        createStationWheel();
+        createStationWheel(); // Render from fallback immediately; refresh from server below
         connect(); // Connect to WebSocket
+        loadStations(); // Fetch the authoritative station list
         postCommand('?'); // Initial command to get status
     };
 

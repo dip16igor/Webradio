@@ -74,6 +74,7 @@ import org.eclipse.paho.client.mqttv3.IMqttDeliveryToken
 import org.eclipse.paho.client.mqttv3.MqttCallbackExtended
 import org.eclipse.paho.client.mqttv3.MqttConnectOptions
 import org.eclipse.paho.client.mqttv3.MqttException
+import org.json.JSONObject
 
 import com.dip16.webradio.ui.theme.Purple80
 
@@ -87,6 +88,7 @@ private val work_mode = listOf("Kusa", "Chel")
 class MainActivity : ComponentActivity() {
 
     private lateinit var client: MqttClient
+    private lateinit var dataStoreManager: DataStoreManager
     @Volatile private var isAppActive = false
 
     private val station = mutableStateOf("")
@@ -98,10 +100,13 @@ class MainActivity : ComponentActivity() {
     private val selectedIndex = mutableStateOf<Int?>(null) // Initialization with null
     private val selectedIndex2 = mutableStateOf<Int?>(null) // Initialization with null
 
+    // Station list: bundled fallback, replaced by the list pushed on Home/{radioName}/Stations
+    private val stationListState = mutableStateOf(buttonDataList)
+
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val dataStoreManager = DataStoreManager(this)
+        dataStoreManager = DataStoreManager(this)
         Log.i("dip17", "onCreate(savedInstanceState)")
         setContent {
             WebRadioTheme {
@@ -119,6 +124,15 @@ class MainActivity : ComponentActivity() {
                     }
                 }
 
+                LaunchedEffect(key1 = true) {
+                    // Apply the cached station list (pushed earlier over MQTT) before the broker responds
+                    dataStoreManager.getStationsJson().collect { cached ->
+                        if (!cached.isNullOrEmpty()) {
+                            parseStationsJson(cached)?.let { stationListState.value = it }
+                        }
+                    }
+                }
+
 
                 Log.i("dip17", "WebRadioTheme")
                 // A surface container using the 'background' color from the theme
@@ -126,7 +140,7 @@ class MainActivity : ComponentActivity() {
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
-                    MQTTButtonsScreen(dataStoreManager, radioMode, buttonDataList)
+                    MQTTButtonsScreen(dataStoreManager, radioMode, stationListState.value)
                 }
             }
         }
@@ -255,12 +269,29 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun subscribeToTopics() {
-        val topics = listOf("State", "Log", "Station", "Title", "Volume", "Alarm")
+        val topics = listOf("State", "Log", "Station", "Title", "Volume", "Alarm", "Stations")
         for (topic in topics) {
             client.subscribe("Home/$radioName/$topic") { _, msg ->
                 handleMessage(topic, msg.toString())
             }
         }
+    }
+
+    private fun parseStationsJson(json: String): List<ButtonData>? = try {
+        val obj = JSONObject(json)
+        val arr = obj.getJSONArray("stations")
+        val list = mutableListOf<ButtonData>()
+        for (i in 0 until arr.length()) {
+            val s = arr.getJSONObject(i)
+            val url = s.optString("url")
+            if (url.isNotEmpty()) {
+                list.add(ButtonData(s.optString("name"), s.optString("genre", "radio"), url))
+            }
+        }
+        if (list.isEmpty()) null else list
+    } catch (e: Exception) {
+        Log.e("dip17", "Failed to parse station list: ${e.message}")
+        null
     }
 
     private fun handleMessage(topic: String, message: String) {
@@ -292,6 +323,16 @@ class MainActivity : ComponentActivity() {
             }
 
             "Alarm" -> handleAlarm(message)
+
+            "Stations" -> {
+                parseStationsJson(message)?.let { parsed ->
+                    stationListState.value = parsed
+                    Log.i("dip17", "Station list updated: ${parsed.size} stations")
+                    CoroutineScope(Dispatchers.IO).launch {
+                        dataStoreManager.saveStationsJson(message)
+                    }
+                }
+            }
         }
     }
 

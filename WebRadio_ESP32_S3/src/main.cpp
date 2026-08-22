@@ -11,6 +11,7 @@
 #include <WiFiUdp.h>
 #include <FastBot.h>
 #include <PubSubClient.h>
+#include <ArduinoJson.h>
 #include <EEPROM.h>
 
 #define I2S_DOUT 25 // DIN connection
@@ -40,6 +41,7 @@
 #define topic_heap "Home/WebRadio2/FreeHeap"
 #define topic_volume "Home/WebRadio2/Volume"
 #define topic_alarm "Home/WebRadio2/Alarm"
+#define topic_stations "Home/WebRadio2/Stations"
 #else
 #define MQTT_CLIENT "WebRadio1" // todo
 #define topic_in "Home/WebRadio1/Action"
@@ -50,6 +52,7 @@
 #define topic_heap "Home/WebRadio1/FreeHeap"
 #define topic_volume "Home/WebRadio1/Volume"
 #define topic_alarm "Home/WebRadio1/Alarm"
+#define topic_stations "Home/WebRadio1/Stations"
 #endif
 
 FastBot bot(BOT_TOKEN);
@@ -138,31 +141,14 @@ int sec_alarm_EEPROM = 0;
 // OLED SSD1306
 U8G2_SSD1306_128X64_NONAME_F_HW_I2C u8g2(U8G2_R0, /* reset=*/U8X8_PIN_NONE); // OLED settings
 
-// declare an array of strings with radio stations
-const char *listStation1[] = {
-    "http://silverrain.hostingradio.ru/silver128.mp3", // 1 Silver Rain
-    "https://live.radiospinner.com/smthlng-64",        // 2
-    "https://live.radiospinner.com/bird-sounds-64",    // birds
-    //"http://streaming.radio.co/s5c5da6a36/listen",            // birds 2 Not working
-    "https://ice6.abradio.cz/relax-morning-birds128.mp3",       // birds 1
-    "http://rautemusik-de-hz-fal-stream12.radiohost.de/lounge", //
-    //"https://str.pcradio.ru/relax_fm_nature-hi",
-    //"https://str.pcradio.ru/hirschmilch_chill-hi", // Good, but not working
-    //"https://ice6.abradio.cz/relax-sea128.mp3",               // Sea
-
-    "https://stream.relaxfm.ee/cafe_HD",
-    "http://streams.bigfm.de/bigfm-sunsetlounge-128-mp3", // 2
-    "https://stream.relaxfm.ee/instrumental_HD",
-    "https://stream.laut.fm/1000oldies",                  //
-    "https://laut.fm/100090er",                           // 90s
-    "http://icecast.pulsradio.com/relaxHD.mp3",           // Pulse Radio
-    "http://streams.electronicmusicradiogroup.org:9050/", //
-
-    "http://199.233.234.34:25373/listen.pls", // GOLD INSTRUMENTAL
-    //"http://nap.casthost.net:8626/listen.pls",            // meditation
-    //"https://101.ru/radio/channel/200",
-    "https://live.radiospinner.com/complete-relaxation-64", // meditation
-};
+// --- Dynamic station list (pushed over MQTT topic_stations by the web server) ---
+// The compiled listStation array below is the offline fallback. When a valid
+// station list arrives on topic_stations, dynStationUrls (pointers into
+// stationsDoc) takes precedence. Array position == channel number.
+#define MAX_DYNAMIC_STATIONS 255
+JsonDocument stationsDoc;
+const char *dynStationUrls[MAX_DYNAMIC_STATIONS];
+int dynStationCount = 0;
 
 const char *listStation[] = {
     "http://silverrain.hostingradio.ru/silver128.mp3",                   // 1 Silver Rain
@@ -178,7 +164,7 @@ const char *listStation[] = {
     "http://ice06.fluidstream.net:8080/kk_rock.mp3",                     // Radio Kiss Kiss Gold Rock
     "http://iis.ge:8000/relax.mp3",                                      // Relax web radio
     "http://jfm1.hostingradio.ru:14536/prog.mp3",                        // prog
-    "http://jfm1.hostingradio.ru:14536/sjstream.mp3",                    // Smorh Jazz
+
     "http://listen1.myradio24.com:9000/6262",                            // SpokoinoeRadio
     "http://listen2.myradio24.com:9000/8226",                            // Enigmatic robot
     "http://maximum.hostingradio.ru/maxcover96.aacp",                    // COVER
@@ -257,10 +243,40 @@ void button_Sleep(void);
 void button_ChUp(void);
 void button_ChDn(void);
 
+// Total station count: dynamic list if loaded, else the compiled fallback
+int getStationCount()
+{
+  if (dynStationCount > 0)
+    return dynStationCount;
+  return sizeof(listStation) / sizeof(listStation[0]);
+}
+
+// Station URL by channel index (0-based); clamps out-of-range indices
+const char *getStationURL(int index)
+{
+  int count = getStationCount();
+  if (count == 0)
+    return listStation[0];
+  if (index < 0)
+    index = 0;
+  if (index >= count)
+    index = count - 1;
+  if (dynStationCount > 0)
+    return dynStationUrls[index];
+  return listStation[index];
+}
+
 int findStation(const char *searchString)
 {
+  if (dynStationCount > 0)
+  {
+    for (int i = 0; i < dynStationCount; ++i)
+    {
+      if (strcmp(dynStationUrls[i], searchString) == 0)
+        return i;
+    }
+  }
   size_t listSize = sizeof(listStation) / sizeof(listStation[0]); // Determine the size of the array
-
   for (size_t i = 0; i < listSize; ++i)
   {
     if (strcmp(listStation[i], searchString) == 0)
@@ -269,6 +285,50 @@ int findStation(const char *searchString)
     }
   }
   return -1; // If the string is not found, return -1
+}
+
+// Parse the station list payload received on topic_stations
+void handleStationsPayload(const byte *payload, unsigned int length)
+{
+  stationsDoc.clear();
+  DeserializationError err = deserializeJson(stationsDoc, (const char *)payload, length);
+  if (err)
+  {
+    Serial.print("Stations JSON error: ");
+    Serial.println(err.c_str());
+    client.publish(topic_out, "Station list parse error");
+    return;
+  }
+
+  JsonArray arr = stationsDoc["stations"].as<JsonArray>();
+  if (arr.isNull() || arr.size() == 0 || arr.size() > MAX_DYNAMIC_STATIONS)
+  {
+    Serial.println("Station list payload invalid");
+    return;
+  }
+
+  int count = 0;
+  for (JsonVariant v : arr)
+  {
+    const char *url = v["url"] | "";
+    if (url[0] == '\0')
+      continue;
+    dynStationUrls[count++] = url; // pointer into stationsDoc (kept alive)
+    if (count >= MAX_DYNAMIC_STATIONS)
+      break;
+  }
+
+  if (count == 0)
+  {
+    Serial.println("Station list has no usable urls");
+    return;
+  }
+
+  dynStationCount = count;
+  Serial.print("Loaded ");
+  Serial.print(dynStationCount);
+  Serial.println(" stations from MQTT");
+  client.publish(topic_out, "Station list updated");
 }
 
 // MQTT receive message from broker
@@ -291,6 +351,12 @@ void callback(char *topic, byte *payload, unsigned int length)
     message += (char)payload[i];
   }
   // Serial.println(message);
+
+  if (strncmp(topic, topic_stations, strlen(topic_stations)) == 0) // station list from the web server
+  {
+    handleStationsPayload(payload, length);
+    return;
+  }
 
   if (strncmp(topic, topic_in, strlen(topic_in)) == 0)
   {
@@ -457,7 +523,7 @@ void callback(char *topic, byte *payload, unsigned int length)
 
       vol = 0;
       audio.setVolume(vol);                         // 0...21
-      audio.connecttohost(listStation[NEWStation]); // switch station
+      audio.connecttohost(getStationURL(NEWStation)); // switch station
       delay(2000);
 
       interval1 = 100; // time step for volume increase in ms
@@ -481,10 +547,13 @@ void callback(char *topic, byte *payload, unsigned int length)
 #endif
       vol = 0;
       audio.setVolume(vol); // 0...21
-      NEWStation = 57;
+      // find the bird-sounds station by URL so the channel index stays valid after list changes
+      NEWStation = findStation("https://live.radiospinner.com/bird-sounds-64");
+      if (NEWStation < 0)
+        NEWStation = 0;
       Channel = NEWStation;
       OLDStation = NEWStation;
-      audio.connecttohost(listStation[NEWStation]); // switch to BIRDS station
+      audio.connecttohost(getStationURL(NEWStation)); // switch to BIRDS station
       delay(2000);
 
       interval1 = 100; // time step for volume increase in ms
@@ -517,7 +586,7 @@ void callback(char *topic, byte *payload, unsigned int length)
       NEWStation = number - 1;
       Channel = NEWStation;
       OLDStation = NEWStation;
-      audio.connecttohost(listStation[NEWStation]); // switch to BIRDS station
+      audio.connecttohost(getStationURL(NEWStation)); // switch to station
       delay(2000);
 
       interval1 = 100; // time step for volume increase in ms
@@ -668,6 +737,9 @@ uint8_t reconnect(void)
       client.publish(topic_out, "Reconnect");
       // ... and resubscribe
       client.subscribe(topic_in);
+      client.subscribe(topic_stations);
+      // request the current station list from the web server
+      client.publish(topic_in, "list?");
     }
     else
     {
@@ -935,7 +1007,7 @@ void button_Power(void)
 
     vol = 0;
     audio.setVolume(vol);                         // 0...21
-    audio.connecttohost(listStation[NEWStation]); // switch station
+    audio.connecttohost(getStationURL(NEWStation)); // switch station
     delay(2000);
 
     interval1 = 100; // time step for volume increase in ms
@@ -1012,7 +1084,7 @@ void button_ChUp(void)
   {
     // client.publish(topic_out, "Channel +");
     NEWStation++; // station forward
-    if (NEWStation > sizeof(listStation) / sizeof(listStation[0]) - 1)
+    if (NEWStation > getStationCount() - 1)
       NEWStation = 0; // station 0
   }
 }
@@ -1023,7 +1095,7 @@ void button_ChDn(void)
     // client.publish(topic_out, "Channel -");
     NEWStation--; // station back
     if (NEWStation < 0)
-      NEWStation = sizeof(listStation) / sizeof(listStation[0]) - 1; //
+      NEWStation = getStationCount() - 1; //
   }
 }
 
@@ -1350,7 +1422,7 @@ void loop() //*************************************************** LOOP *********
     previousMillis2 = currentMillis;
     Serial.println("Reconnect to Host");
     // call the function to be executed every minute
-    audio.connecttohost(listStation[NEWStation]); // switch station
+    audio.connecttohost(getStationURL(NEWStation)); // switch station
   }
 
   client.loop(); // MQTT client
@@ -1527,12 +1599,12 @@ void loop() //*************************************************** LOOP *********
     {
       NEWStation--; // station back
       if (NEWStation < 0)
-        NEWStation = sizeof(listStation) / sizeof(listStation[0]) - 1; //
+        NEWStation = getStationCount() - 1; //
     }
     if ((b2.click()))
     {
       NEWStation++; // station forward
-      if (NEWStation > sizeof(listStation) / sizeof(listStation[0]) - 1)
+      if (NEWStation > getStationCount() - 1)
         NEWStation = 0; // station 0
     }
     // If we have selected a new station
@@ -1550,7 +1622,7 @@ void loop() //*************************************************** LOOP *********
 
       UpdateScreen();
 
-      audio.connecttohost(listStation[NEWStation]); // switch station
+      audio.connecttohost(getStationURL(NEWStation)); // switch station
 
       // Serial.println(NEWStation);
 
@@ -1562,7 +1634,7 @@ void loop() //*************************************************** LOOP *********
       CounterFail++;
       Serial.print("Reconnect #");
       Serial.println(CounterFail);
-      audio.connecttohost(listStation[NEWStation]); // switch station
+      audio.connecttohost(getStationURL(NEWStation)); // switch station
       delay(100);
       previousMillis2 = millis();
     }
@@ -1973,7 +2045,7 @@ void PowerON_1()
 
     vol = 0;
     audio.setVolume(vol);                         // 0...21
-    audio.connecttohost(listStation[NEWStation]); // switch station
+    audio.connecttohost(getStationURL(NEWStation)); // switch station
     delay(2000);
 
     interval1 = 1000 * 10; // time step for volume increase in ms

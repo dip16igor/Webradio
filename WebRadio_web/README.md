@@ -9,6 +9,7 @@ This is a web-based remote control for the ESP32 WebRadio project. It provides a
 - **Real-time Status Display**: Shows the current station, song title, volume level, and connection status.
 - **Playback Control**: Control power, volume, and select preset radio stations.
 - **Alarm Management**: Set and cancel alarms.
+- **Central Station Manager**: A single `stations.json` list edited on this site is pushed to both radios (ESP32) and the Android app over MQTT. No more hardcoded lists in each client.
 - **Responsive Design**: The interface is designed to work well on both desktop and mobile browsers.
 
 ## Technology Stack
@@ -61,10 +62,22 @@ The project is designed to be run in a Docker container, which greatly simplifie
 
 On your first visit to the site, the browser will prompt you for a secret token.
 
-1.  Copy the value of `SECRET_TOKEN` from your `.env` file.
-2.  Paste it into the prompt that appears in the browser.
+1. Copy the value of `SECRET_TOKEN` from your `.env` file.
+2. Paste it into the prompt that appears in the browser.
 
 The browser will save the token for future sessions.
+
+## Station Manager
+
+The station list is the single source of truth for all radio clients. It lives in `data/stations.json` (versioned, atomic writes) and is served at `GET /api/radio/stations`. On save, the server publishes the list to `Home/WebRadio1/Stations` and `Home/WebRadio2/Stations`; the ESP32 firmware and Android app apply it immediately. The web UI fetches it on load and updates live over WebSocket.
+
+To edit stations:
+
+1. Open `/admin.html` (e.g. `https://your-domain.com/webradio/admin.html`).
+2. Add, remove, reorder stations; edit name / URL / genre. Array order == channel number (`c<N>` commands).
+3. Press **Save** — the list is validated, persisted, and pushed to all devices.
+
+The station list also ships with a `GET /api/radio/stations` (auth required) used by the Python `fetch_stations.py` utility. In Docker, `data/` must be mounted as a volume (see `docker-compose.yml`) or saved changes are lost on rebuild.
 
 ## Security
 

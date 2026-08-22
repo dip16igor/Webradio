@@ -76,7 +76,7 @@ All secret data (passwords, tokens) is stored in a separate file for security.
     - **WiFi:** Your network SSIDs and passwords in the `ssidList` and `passwordList` arrays.
     - **Telegram:** Your bot's token in `BOT_TOKEN` and your admin chat ID in `ADMIN_CHAT_ID`.
     - **MQTT:** Your broker's server address, login, and password.
-3.  **Radio Stations:** The list of radio station URLs is still located in `src/main.cpp` in the `listStation` array.
+4.  **Radio Stations:** The station list is managed centrally on the web server's admin page (`/admin.html`) and pushed to the device over MQTT (`Home/WebRadioX/Stations`). The `listStation` array in `src/main.cpp` is now only the offline fallback; edit it only to change the default/fallback set.
 
 ## Controls
 
@@ -100,6 +100,9 @@ Topics depend on the `ESP_WROVER` macro (`WebRadio1` or `WebRadio2`).
   - `h<url>`: Play stream from the specified `url`.
   - `s<seconds>`: Set alarm (time in seconds from midnight).
   - `sAlarm OFF`: Disable alarm.
+  - `list?`: Request the current station list from the web server (sent automatically on MQTT connect).
+
+- **Station list (topic_stations):** `Home/WebRadioX/Stations` — JSON payload `{"version": N, "updatedAt": ..., "stations": [{"name", "url", "genre"}]}` pushed by the web server's admin page. The firmware parses it into RAM (ArduinoJson) and uses it for channel selection; the compiled `listStation` array is only an offline fallback. Array order == channel number.
 
 - **Outgoing statuses (topic\_\*):**
   - `Home/WebRadioX/Log`: General messages and audio stream information.

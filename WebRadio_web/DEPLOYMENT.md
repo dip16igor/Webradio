@@ -16,6 +16,7 @@ This guide describes how to deploy the WebRadio application on a VPS server with
 ```
 /home/dip16/apps/webradio/
 ├── public/           # Static files (HTML, CSS, JS, images)
+├── data/             # stations.json - the canonical station list (must persist!)
 ├── server.js         # Node.js application
 ├── package.json
 ├── Dockerfile
@@ -62,6 +63,7 @@ docker run -d \
   -p 127.0.0.1:3000:3000 \
   --env-file /home/dip16/apps/webradio/.env \
   --add-host host.docker.internal:host-gateway \
+  -v /home/dip16/apps/webradio/data:/usr/src/app/data \
   webradio
 ```
 
@@ -185,3 +187,12 @@ curl -k https://your-domain.com:8443/webradio/api/radio/status \
 - Keep `.env` file secure and never commit to version control
 - Use strong, unique SECRET_TOKEN
 - Consider IP whitelisting for admin endpoints
+
+## Station Manager
+
+The station list lives in `data/stations.json` and is edited at `https://your-domain.com/webradio/admin.html` (same `SECRET_TOKEN`). On save, the server:
+
+1. Validates and atomically rewrites `data/stations.json` (bumping `version`).
+2. Publishes the list to `Home/WebRadio1/Stations` and `Home/WebRadio2/Stations` so the ESP32 radios and Android app update immediately.
+
+**Important:** the `data/` directory MUST be mounted as a volume (see `docker run -v` above or `docker-compose.yml`) — otherwise admin edits are lost whenever the container is rebuilt. The repository ships a seeded `data/stations.json` (79 stations) for first deployment.

@@ -31,6 +31,18 @@ This script reads a list of station URLs from a text file (`bestlist.txt`) and c
 python convert_txt_to_json.py
 ```
 
+### `fetch_stations.py`
+
+Downloads the canonical station list from the WebRadio web server and writes it as `best.json` (the format used by `webradio.py`). This keeps the CLI player in sync with the station manager on the web site.
+
+**Usage:**
+
+```bash
+export WEBRADIO_TOKEN=your_secret_token
+python fetch_stations.py
+# optional: --url https://your-domain.com/webradio/api/radio/stations --output best.json
+```
+
 ### `sort_txt.py`
 
 This script reads the `bestlist.txt` file, removes any duplicate station URLs, sorts the list alphabetically, and saves the result to `bestlist_sorted.txt`.

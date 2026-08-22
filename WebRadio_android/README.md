@@ -87,6 +87,7 @@ The app subscribes to several topics to receive real-time status updates from th
 - `Home/{radioName}/Volume`: The current volume level.
 - `Home/{radioName}/Alarm`: The current alarm setting (in seconds from midnight or the string "Alarm OFF").
 - `Home/{radioName}/Log`: General log messages from the device for debugging.
+- `Home/{radioName}/Stations`: The station list JSON pushed by the web server's admin page. The app applies it immediately to the station grid and caches it in DataStore (used on next launch until a fresh list arrives; the bundled list is only a fallback).
 
 ## How to Build
 
