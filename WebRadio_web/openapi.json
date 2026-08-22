@@ -1,0 +1,246 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "ESP32 WebRadio API",
+    "version": "1.0.0",
+    "description": "Control interface for the WebRadio system: manage the station list (single source of truth, pushed to ESP32 radios and the Android app over MQTT) and control the radio (power, volume, station, alarm).\n\nAuthentication: every request must send the secret token in the `X-Auth-Token` header (or `Authorization: Bearer <token>`).\n\nThe app is commonly served under a base path such as `/webradio` (nginx). Prefix all paths below with that base path.\n\nStation list semantics:\n- The array order IS the channel number (1-based) used by `c<N>` commands.\n- Every station has a stable integer `id` (server-assigned). Address stations by id for updates/deletes/reordering.\n- Writes bump `version`; `GET /api/radio/stations` returns the current version. Optional `expectedVersion` on PUT returns 409 on conflict (read-modify-write safety).\n- Every successful write is persisted to data/stations.json and published to `Home/WebRadio1/Stations` + `Home/WebRadio2/Stations`; connected ESP32s and the Android app apply it immediately.",
+    "contact": { "name": "dip16" }
+  },
+  "servers": [{ "url": "/", "description": "Prefix with the deployment base path (e.g. /webradio) and add the auth header" }],
+  "tags": [
+    { "name": "stations", "description": "Station list management" },
+    { "name": "radio", "description": "Live radio control" },
+    { "name": "discovery", "description": "API discovery" }
+  ],
+  "components": {
+    "securitySchemes": {
+      "tokenAuth": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-Auth-Token",
+        "description": "The SECRET_TOKEN from the server's .env"
+      }
+    },
+    "schemas": {
+      "Station": {
+        "type": "object",
+        "required": ["id", "name", "url", "genre"],
+        "properties": {
+          "id": { "type": "integer", "minimum": 1, "description": "Stable identity; never changes for the life of the station" },
+          "name": { "type": "string", "maxLength": 60 },
+          "url": { "type": "string", "pattern": "^https?://" },
+          "genre": { "type": "string", "maxLength": 30, "description": "Free-form; drives button colors in clients" }
+        }
+      },
+      "StationInput": {
+        "type": "object",
+        "required": ["name", "url"],
+        "properties": {
+          "id": { "type": "integer", "description": "Optional on PUT (kept if it exists, else inherited by url, else assigned)" },
+          "name": { "type": "string", "maxLength": 60 },
+          "url": { "type": "string", "pattern": "^https?://" },
+          "genre": { "type": "string", "maxLength": 30 }
+        }
+      },
+      "StationList": {
+        "type": "object",
+        "properties": {
+          "version": { "type": "integer", "description": "Increments on every write" },
+          "updatedAt": { "type": "string", "format": "date-time" },
+          "stations": { "type": "array", "items": { "$ref": "#/components/schemas/Station" } }
+        }
+      },
+      "Error": {
+        "type": "object",
+        "properties": {
+          "success": { "type": "boolean", "enum": [false] },
+          "message": { "type": "string" },
+          "errors": { "type": "array", "items": { "type": "object" } }
+        }
+      }
+    }
+  },
+  "security": [{ "tokenAuth": [] }],
+  "paths": {
+    "/api/radio/stations": {
+      "get": {
+        "tags": ["stations"],
+        "summary": "Get the station list",
+        "description": "Returns the canonical list with version. Array order = channel number.",
+        "responses": {
+          "200": {
+            "description": "Station list",
+            "content": { "application/json": { "schema": { "type": "object", "properties": { "success": { "type": "boolean" }, "data": { "$ref": "#/components/schemas/StationList" } } } } }
+          },
+          "401": { "description": "Missing or invalid token" }
+        }
+      },
+      "put": {
+        "tags": ["stations"],
+        "summary": "Replace the whole station list",
+        "description": "Full replace with validation. Optional expectedVersion prevents clobbering concurrent edits (409 on mismatch). Ids are preserved when possible.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["stations"],
+                "properties": {
+                  "expectedVersion": { "type": "integer", "description": "Optional; must equal the current version or 409 is returned" },
+                  "stations": { "type": "array", "minItems": 1, "maxItems": 255, "items": { "$ref": "#/components/schemas/StationInput" } }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Saved and published to devices", "content": { "application/json": { "schema": { "type": "object", "properties": { "success": { "type": "boolean" }, "data": { "$ref": "#/components/schemas/StationList" } } } } } },
+          "409": { "description": "Version conflict", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+          "422": { "description": "Validation failed", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+        }
+      },
+      "post": {
+        "tags": ["stations"],
+        "summary": "Append a station",
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "type": "object", "required": ["name", "url"], "properties": { "name": { "type": "string" }, "url": { "type": "string" }, "genre": { "type": "string" } } } } }
+        },
+        "responses": {
+          "200": { "description": "Station appended; new version in data", "content": { "application/json": { "schema": { "type": "object", "properties": { "success": { "type": "boolean" }, "data": { "$ref": "#/components/schemas/StationList" } } } } } },
+          "422": { "description": "Validation failed" }
+        }
+      }
+    },
+    "/api/radio/stations/order": {
+      "post": {
+        "tags": ["stations"],
+        "summary": "Reorder stations by id list",
+        "description": "ids must be a permutation of all current ids. The order becomes the new channel numbering.",
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "type": "object", "required": ["ids"], "properties": { "ids": { "type": "array", "items": { "type": "integer" } } } } } }
+        },
+        "responses": {
+          "200": { "description": "Reordered and published", "content": { "application/json": { "schema": { "type": "object", "properties": { "success": { "type": "boolean" }, "data": { "$ref": "#/components/schemas/StationList" } } } } } },
+          "422": { "description": "Not a permutation of current ids" }
+        }
+      }
+    },
+    "/api/radio/stations/{id}": {
+      "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }],
+      "patch": {
+        "tags": ["stations"],
+        "summary": "Update one station by id",
+        "description": "Partial update; any of name/url/genre.",
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "type": "object", "properties": { "name": { "type": "string" }, "url": { "type": "string" }, "genre": { "type": "string" } } } } }
+        },
+        "responses": {
+          "200": { "description": "Updated", "content": { "application/json": { "schema": { "type": "object", "properties": { "success": { "type": "boolean" }, "data": { "$ref": "#/components/schemas/StationList" } } } } } },
+          "404": { "description": "No station with this id" },
+          "422": { "description": "Validation failed" }
+        }
+      },
+      "delete": {
+        "tags": ["stations"],
+        "summary": "Delete one station by id",
+        "responses": {
+          "200": { "description": "Deleted", "content": { "application/json": { "schema": { "type": "object", "properties": { "success": { "type": "boolean" }, "data": { "$ref": "#/components/schemas/StationList" } } } } } },
+          "404": { "description": "No station with this id" },
+          "422": { "description": "Refusing to delete the last station" }
+        }
+      }
+    },
+    "/api/radio/status": {
+      "get": {
+        "tags": ["radio"],
+        "summary": "Current radio status",
+        "description": "Last known MQTT status topics (State, Station, Title, Volume, Alarm, Log, FreeHeap, Stations). Ask the device for fresh data by POSTing {\"command\":\"?\"}.",
+        "responses": { "200": { "description": "Status snapshot" } }
+      }
+    },
+    "/api/radio/station": {
+      "post": {
+        "tags": ["radio"],
+        "summary": "Power on and switch to channel N",
+        "description": "Publishes c<N> to the device Action topic.",
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "type": "object", "required": ["station"], "properties": { "station": { "type": "integer", "minimum": 1, "maximum": 255 } } } } }
+        },
+        "responses": { "200": { "description": "Command published" }, "422": { "description": "Invalid channel" } }
+      }
+    },
+    "/api/radio/volume": {
+      "post": {
+        "tags": ["radio"],
+        "summary": "Set absolute volume 0..21",
+        "description": "The firmware only accepts vol+/vol-; the server computes the delta from the last known volume. Returns 503 if the current volume is unknown (request status first).",
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "type": "object", "required": ["volume"], "properties": { "volume": { "type": "integer", "minimum": 0, "maximum": 21 } } } } }
+        },
+        "responses": {
+          "200": { "description": "Command(s) published" },
+          "503": { "description": "Current volume unknown" }
+        }
+      }
+    },
+    "/api/radio/power": {
+      "post": {
+        "tags": ["radio"],
+        "summary": "Power on or off",
+        "description": "Publishes 1 (on) or 0 (off).",
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "type": "object", "required": ["state"], "properties": { "state": { "type": "string", "enum": ["on", "off"] } } } } }
+        },
+        "responses": { "200": { "description": "Command published" }, "422": { "description": "state must be on|off" } }
+      }
+    },
+    "/api/radio/alarm": {
+      "post": {
+        "tags": ["radio"],
+        "summary": "Set or cancel the alarm",
+        "description": "Provide seconds (0..86400, seconds-from-midnight) or time \"HH:MM\". seconds=0 / time=00:00 cancels the alarm (sAlarm OFF).",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "seconds": { "type": "integer", "minimum": 0, "maximum": 86400 },
+                  "time": { "type": "string", "example": "06:30" }
+                }
+              }
+            }
+          }
+        },
+        "responses": { "200": { "description": "Command published" }, "422": { "description": "Provide exactly one of seconds or time" } }
+      }
+    },
+    "/api/radio/command": {
+      "post": {
+        "tags": ["radio"],
+        "summary": "Raw device command",
+        "description": "Publish any payload to the Action topic: ? (status), 1/0 (power), b1-b4 (buttons), vol+/vol-, c<N> (channel), h<url> (play url), s<seconds>, sAlarm OFF.",
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "type": "object", "required": ["command"], "properties": { "command": { "type": "string" } } } } }
+        },
+        "responses": { "200": { "description": "Command published" } }
+      }
+    },
+    "/api/radio/openapi.json": {
+      "get": {
+        "tags": ["discovery"],
+        "summary": "This OpenAPI specification",
+        "responses": { "200": { "description": "OpenAPI 3.0 JSON" } }
+      }
+    }
+  }
+}

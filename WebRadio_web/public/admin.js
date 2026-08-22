@@ -153,7 +153,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
             const json = await res.json();
             if (!json.success) throw new Error('Bad response');
-            stations = json.data.stations.map(s => ({ name: s.name, url: s.url, genre: s.genre || 'radio' }));
+            stations = json.data.stations.map(s => ({ id: s.id, name: s.name, url: s.url, genre: s.genre || 'radio' }));
             metaEl.textContent = `${stations.length} stations \u00b7 version ${json.data.version} \u00b7 updated ${json.data.updatedAt || 'n/a'}`;
             render();
         } catch (err) {
@@ -176,7 +176,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const res = await fetch(`${API_BASE_PATH}/stations`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json', 'X-Auth-Token': token },
-                body: JSON.stringify({ stations: stations.map(s => ({ name: s.name.trim(), url: s.url.trim(), genre: s.genre.trim() })) })
+                body: JSON.stringify({ stations: stations.map(s => ({ id: s.id, name: s.name.trim(), url: s.url.trim(), genre: s.genre.trim() })) })
             });
             const json = await res.json().catch(() => ({}));
             if (!res.ok) {
@@ -184,7 +184,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 showStatus(false, `Save failed: ${detail}`);
                 return;
             }
-            stations = json.data.stations.map(s => ({ name: s.name, url: s.url, genre: s.genre || 'radio' }));
+            stations = json.data.stations.map(s => ({ id: s.id, name: s.name, url: s.url, genre: s.genre || 'radio' }));
             metaEl.textContent = `${stations.length} stations \u00b7 version ${json.data.version} \u00b7 updated ${json.data.updatedAt}`;
             showStatus(true, `Saved ${stations.length} stations (version ${json.data.version}). Published to devices.`);
             render();

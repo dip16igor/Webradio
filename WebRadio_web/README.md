@@ -79,6 +79,18 @@ To edit stations:
 
 The station list also ships with a `GET /api/radio/stations` (auth required) used by the Python `fetch_stations.py` utility. In Docker, `data/` must be mounted as a volume (see `docker-compose.yml`) or saved changes are lost on rebuild.
 
+## REST API (AI agents)
+
+The full API is described by an OpenAPI 3 spec at `GET /api/radio/openapi.json` (auth: `X-Auth-Token` header). Agents/tools should read it for discovery. Highlights:
+
+- `GET/PUT /api/radio/stations` — read / full-replace the list (PUT accepts optional `expectedVersion`; 409 on conflict)
+- `POST /api/radio/stations` — append; `PATCH/DELETE /api/radio/stations/{id}` — update/remove by stable id
+- `POST /api/radio/stations/order` — reorder by id list
+- `POST /api/radio/station|volume|power|alarm|command` — live radio control (all publish real firmware commands)
+- `GET /api/radio/status` — last known device status
+
+Every station has a stable integer `id` (server-assigned); array order remains the channel number.
+
 ## Security
 
 The following security measures have been implemented in this project:
