@@ -481,6 +481,11 @@ apiRouter.get('/openapi.json', (req, res) => {
     res.json(require('./openapi.json'));
 });
 
+// --- Agent guide (human/agent-readable manual) ---
+apiRouter.get('/guide', (req, res) => {
+    res.type('text/markdown').send(fs.readFileSync('AGENT_GUIDE.md', 'utf8'));
+});
+
 // --- Static Frontend Hosting ---
 app.use('/', express.static('public'));
 
