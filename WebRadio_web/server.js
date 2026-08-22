@@ -294,7 +294,8 @@ apiRouter.post(
     validateRequest,
     (req, res) => {
         const { seconds } = req.body;
-        const command = `s${seconds}`;
+        // seconds === 0 means "no alarm": the device treats "s0" as arming a midnight alarm
+        const command = seconds === 0 ? 'sAlarm OFF' : `s${seconds}`;
         publishMqttCommand(res, command, { command, seconds });
     }
 );

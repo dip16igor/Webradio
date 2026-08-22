@@ -339,7 +339,8 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     cancelAlarmBtn.addEventListener('click', () => {
-        postCommand('s0');
+        // "sAlarm OFF" disables the alarm; "s0" would arm a midnight alarm on the device
+        postCommand('sAlarm OFF');
         alert('Alarm cancelled.');
         setTimeout(() => postCommand('?'), 200);
     });
