@@ -275,6 +275,9 @@ class MainActivity : ComponentActivity() {
                 handleMessage(topic, msg.toString())
             }
         }
+        // Request the current station list; the web server answers on Home/{radioName}/Stations.
+        // This mirrors the ESP32 firmware (which publishes "list?" on every MQTT connect).
+        sendMessage("list?")
     }
 
     private fun parseStationsJson(json: String): List<ButtonData>? = try {
