@@ -103,6 +103,10 @@ class MainActivity : ComponentActivity() {
     // Station list: bundled fallback, replaced by the list pushed on Home/{radioName}/Stations
     private val stationListState = mutableStateOf(buttonDataList)
 
+    // Guards: prevent duplicate MQTT clients at startup and suppress the alarm echo
+    @Volatile private var mqttConnecting = false
+    @Volatile private var suppressAlarmSend = false
+
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -182,7 +186,12 @@ class MainActivity : ComponentActivity() {
         return "$hours:${String.format("%02d", minutes)}"
     }
 
-    private fun connectToMQTT() {
+    private fun connectToMQTT(force: Boolean = false) {
+        if (!force && (mqttConnecting || (::client.isInitialized && client.isConnected))) {
+            Log.d("dip171", "MQTT already connected or connecting, skipping duplicate connection")
+            return
+        }
+        mqttConnecting = true
         val persistence = MemoryPersistence()
         val mqttClientId = MqttClient.generateClientId()
         client = MqttClient(Secrets.MQTT_BROKER_URL, mqttClientId, persistence)
@@ -209,6 +218,7 @@ class MainActivity : ComponentActivity() {
                 override fun connectionLost(cause: Throwable?) {
                     connectionState.value = "Connection LOST.."
                     Log.e("dip171", "Connection lost to ${Secrets.MQTT_BROKER_URL}  $cause")
+                    mqttConnecting = false
 
                     if (isAppActive) {
                         connectToMQTT()
@@ -250,10 +260,12 @@ class MainActivity : ComponentActivity() {
                 Log.e("dip171", "Client not connected!")
                 connectionState.value = "Client not connected!"
             }
+            mqttConnecting = false
 
         } catch (e: MqttException) {
             Log.e("dip171", "Fail connect to ${Secrets.MQTT_BROKER_URL} !\n $e")
             e.printStackTrace()
+            mqttConnecting = false
 
             connectionState.value = "Connection Failed!"
         }
@@ -341,6 +353,8 @@ class MainActivity : ComponentActivity() {
 
     private fun handleAlarm(newAlarm: String) {
         Log.d("dip17", "Alarm -> $newAlarm")
+        // This selection change comes from the device status, not the user - do not echo it back
+        suppressAlarmSend = true
         if (newAlarm != "Alarm OFF") {
             val ssInt = newAlarm.toInt()
             val tt = convertSecondsToTime(ssInt)
@@ -360,8 +374,9 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun disconnectFromMQTT() {
+        mqttConnecting = false
         try {
-            if (client.isConnected) {
+            if (::client.isInitialized && client.isConnected) {
                 client.disconnect()
                 client.close()
                 Log.d("dip171", "Disconnected from MQTT broker and client closed.")
@@ -564,6 +579,7 @@ class MainActivity : ComponentActivity() {
             alarms.dropLast(1).forEachIndexed { index, item ->
                 DropdownMenuItem(
                     onClick = {
+                        suppressAlarmSend = false // user action - always send
                         selectedIndex.value = index
                         onDismissRequest()
                     },
@@ -585,6 +601,7 @@ class MainActivity : ComponentActivity() {
             }
             DropdownMenuItem(
                 onClick = {
+                    suppressAlarmSend = false // user action - always send
                     selectedIndex.value = alarms.lastIndex
                     onDismissRequest()
                 },
@@ -739,6 +756,10 @@ class MainActivity : ComponentActivity() {
     ) {
         if (selectedIndex != null) {
             coroutineScope.launch(Dispatchers.IO) {
+                if (suppressAlarmSend) {
+                    Log.i("dip17", "Alarm selection synced from device, skipping send")
+                    return@launch
+                }
                 try {
                     val message = if (alarms[selectedIndex] != "Alarm OFF") {
                         val sec = convertTimeToSeconds(alarms[selectedIndex])
@@ -761,24 +782,26 @@ class MainActivity : ComponentActivity() {
         coroutineScope: CoroutineScope
     ) {
         if (selectedIndex != null) {
-
-
             coroutineScope.launch(Dispatchers.IO) {
-                if (selectedIndex == 0) {
-                    radioName = "WebRadio2"
-                    Log.i("dip17", "radioName = $radioName")
-                    connectToMQTT()
+                val target = if (selectedIndex == 0) "WebRadio2" else "WebRadio1"
+                if (radioName == target) {
+                    // Same device: only (re)connect when there is no active client.
+                    // On startup onStart() already connects, so this avoids a duplicate client.
+                    if (::client.isInitialized && client.isConnected) {
+                        Log.i("dip17", "Already connected to $target, skipping reconnect")
+                    } else {
+                        Log.i("dip17", "Connecting to $target")
+                        connectToMQTT()
+                    }
+                } else {
+                    // Switching devices: tear down the old client before connecting to the new one
+                    Log.i("dip17", "Switching radio to $target")
+                    if (::client.isInitialized && client.isConnected) {
+                        disconnectFromMQTT()
+                    }
+                    radioName = target
+                    connectToMQTT(force = true)
                 }
-                if (selectedIndex == 1) {
-                    radioName = "WebRadio1"
-                    Log.i("dip17", "radioName = $radioName")
-                    connectToMQTT()
-                }
-//                try {
-//                    sendMessage("?")
-//                } catch (e: MqttException) {
-//                    Log.e("dip17", "Broker communication error: ${e.message}")
-//                }
             }
         }
     }
