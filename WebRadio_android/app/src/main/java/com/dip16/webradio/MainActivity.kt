@@ -106,6 +106,8 @@ class MainActivity : ComponentActivity() {
     // Guards: prevent duplicate MQTT clients at startup and suppress the alarm echo
     @Volatile private var mqttConnecting = false
     @Volatile private var suppressAlarmSend = false
+    // Version of the last applied station list; stale cache copies never override fresher data
+    @Volatile private var appliedStationsVersion = -1
 
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -129,10 +131,11 @@ class MainActivity : ComponentActivity() {
                 }
 
                 LaunchedEffect(key1 = true) {
-                    // Apply the cached station list (pushed earlier over MQTT) before the broker responds
+                    // Apply the cached station list (pushed earlier over MQTT) before the broker responds.
+                    // The version guard keeps a stale cache from overriding a fresher MQTT push.
                     dataStoreManager.getStationsJson().collect { cached ->
                         if (!cached.isNullOrEmpty()) {
-                            parseStationsJson(cached)?.let { stationListState.value = it }
+                            applyStationList(cached)
                         }
                     }
                 }
@@ -309,6 +312,25 @@ class MainActivity : ComponentActivity() {
         null
     }
 
+    // Apply a station list only if it is newer than what is already shown.
+    // Prevents a stale DataStore cache from overwriting a fresh MQTT push.
+    private fun applyStationList(json: String) {
+        val version = try {
+            JSONObject(json).optInt("version", -1)
+        } catch (e: Exception) {
+            -1
+        }
+        if (version != -1 && version <= appliedStationsVersion) {
+            Log.i("dip17", "Station list version $version already applied, skipping")
+            return
+        }
+        parseStationsJson(json)?.let { parsed ->
+            stationListState.value = parsed
+            if (version != -1) appliedStationsVersion = version
+            Log.i("dip17", "Station list updated: ${parsed.size} stations (version $version)")
+        }
+    }
+
     private fun handleMessage(topic: String, message: String) {
         connectionState.value = " "
         when (topic) {
@@ -340,12 +362,9 @@ class MainActivity : ComponentActivity() {
             "Alarm" -> handleAlarm(message)
 
             "Stations" -> {
-                parseStationsJson(message)?.let { parsed ->
-                    stationListState.value = parsed
-                    Log.i("dip17", "Station list updated: ${parsed.size} stations")
-                    CoroutineScope(Dispatchers.IO).launch {
-                        dataStoreManager.saveStationsJson(message)
-                    }
+                applyStationList(message)
+                CoroutineScope(Dispatchers.IO).launch {
+                    dataStoreManager.saveStationsJson(message)
                 }
             }
         }
