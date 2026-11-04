@@ -42,6 +42,7 @@
 #define topic_volume "Home/WebRadio2/Volume"
 #define topic_alarm "Home/WebRadio2/Alarm"
 #define topic_stations "Home/WebRadio2/Stations"
+#define topic_dropouts "Home/WebRadio2/Dropouts"
 #else
 #define MQTT_CLIENT "WebRadio1" // todo
 #define topic_in "Home/WebRadio1/Action"
@@ -53,6 +54,7 @@
 #define topic_volume "Home/WebRadio1/Volume"
 #define topic_alarm "Home/WebRadio1/Alarm"
 #define topic_stations "Home/WebRadio1/Stations"
+#define topic_dropouts "Home/WebRadio1/Dropouts"
 #endif
 
 FastBot bot(BOT_TOKEN);
@@ -107,6 +109,12 @@ int CounterFail = 0;
 bool ReconnectLater = 0;
 const char *subString1 = "dropouts";
 bool Dropouts = 0;
+// Dropout counter: number of audio buffer underruns in the current 10 s window,
+// published to topic_dropouts only when the value changes (repeated 0 suppressed)
+unsigned int DropoutCount = 0;
+unsigned long DropoutWindowStart = 0;
+const unsigned long DropoutWindowInterval = 10000; // 10 seconds
+int LastDropoutPublished = 0;
 const char *subString2 = "403";
 const char *subString3 = "500";
 // int counterSleep;
@@ -242,6 +250,7 @@ void button_Power(void);
 void button_Sleep(void);
 void button_ChUp(void);
 void button_ChDn(void);
+void resetDropoutStats(void);
 
 // Total station count: dynamic list if loaded, else the compiled fallback
 int getStationCount()
@@ -329,6 +338,19 @@ void handleStationsPayload(const byte *payload, unsigned int length)
   Serial.print(dynStationCount);
   Serial.println(" stations from MQTT");
   client.publish(topic_out, "Station list updated");
+}
+
+// Reset dropout statistics on station switch: counter to zero, window restart,
+// and an immediate "0" publish if the last sent value wasn't 0 (no repeated zeros)
+void resetDropoutStats()
+{
+  DropoutCount = 0;
+  DropoutWindowStart = millis();
+  if (LastDropoutPublished != 0 && client.connected())
+  {
+    client.publish(topic_dropouts, "0");
+    LastDropoutPublished = 0;
+  }
 }
 
 // MQTT receive message from broker
@@ -524,6 +546,7 @@ void callback(char *topic, byte *payload, unsigned int length)
       vol = 0;
       audio.setVolume(vol);                         // 0...21
       audio.connecttohost(getStationURL(NEWStation)); // switch station
+      resetDropoutStats();
       delay(2000);
 
       interval1 = 100; // time step for volume increase in ms
@@ -554,6 +577,7 @@ void callback(char *topic, byte *payload, unsigned int length)
       Channel = NEWStation;
       OLDStation = NEWStation;
       audio.connecttohost(getStationURL(NEWStation)); // switch to BIRDS station
+      resetDropoutStats();
       delay(2000);
 
       interval1 = 100; // time step for volume increase in ms
@@ -587,6 +611,7 @@ void callback(char *topic, byte *payload, unsigned int length)
       Channel = NEWStation;
       OLDStation = NEWStation;
       audio.connecttohost(getStationURL(NEWStation)); // switch to station
+      resetDropoutStats();
       delay(2000);
 
       interval1 = 100; // time step for volume increase in ms
@@ -606,6 +631,7 @@ void callback(char *topic, byte *payload, unsigned int length)
         OLDStation = NEWStation;
       }
       audio.connecttohost(host); // switch station
+      resetDropoutStats();
     }
 
     if (payload[0] == 's')
@@ -1008,6 +1034,7 @@ void button_Power(void)
     vol = 0;
     audio.setVolume(vol);                         // 0...21
     audio.connecttohost(getStationURL(NEWStation)); // switch station
+    resetDropoutStats();
     delay(2000);
 
     interval1 = 100; // time step for volume increase in ms
@@ -1524,6 +1551,26 @@ void loop() //*************************************************** LOOP *********
       reconnect();
   }
 
+  // ----------------- Dropout counter: publish count per 10 s window, on change only -----
+  if (currentMillis - DropoutWindowStart >= DropoutWindowInterval)
+  {
+    DropoutWindowStart = currentMillis;
+    int n = (int)DropoutCount;
+    if (n == LastDropoutPublished)
+    {
+      DropoutCount = 0; // no change (incl. repeated 0) — nothing to send
+    }
+    else if (client.connected())
+    {
+      char dropBuf[12];
+      itoa(n, dropBuf, 10);
+      client.publish(topic_dropouts, dropBuf);
+      LastDropoutPublished = n;
+      DropoutCount = 0;
+    }
+    // else: offline — keep accumulating, will send when reconnected
+  }
+
   // -------------------------------------------------------------------------- SCREEN ----------------------------------
   if ((currentMillis - lastUpdateTime >= updateInterval) && StatusPower)
   {
@@ -1627,6 +1674,7 @@ void loop() //*************************************************** LOOP *********
       // Serial.println(NEWStation);
 
       OLDStation = NEWStation; // the action should be performed only once
+      resetDropoutStats();
     }
 
     if (RequestFail && CounterFail < 10)
@@ -1897,6 +1945,7 @@ void audio_info(const char *info)
   if (strstr(info, subString1) != NULL) // check for "dropouts"
   {
     Dropouts = 1;
+    DropoutCount++;
   }
 
   UpdateScreen();
@@ -2046,6 +2095,7 @@ void PowerON_1()
     vol = 0;
     audio.setVolume(vol);                         // 0...21
     audio.connecttohost(getStationURL(NEWStation)); // switch station
+    resetDropoutStats();
     delay(2000);
 
     interval1 = 1000 * 10; // time step for volume increase in ms

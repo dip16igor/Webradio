@@ -102,6 +102,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const volumeEl = document.getElementById('volume');
     const volumeIconEl = document.getElementById('volume-icon');
     const titleEl = document.getElementById('title');
+    const dropoutsEl = document.getElementById('dropouts');
     const alarmEl = document.getElementById('alarm');
     const logEl = document.getElementById('log');
     const statusContainer = document.getElementById('status-container');
@@ -291,6 +292,9 @@ document.addEventListener('DOMContentLoaded', () => {
         volumeEl.textContent = data.Volume || 'N/A';
         titleEl.textContent = data.Title || 'N/A';
         updateVolumeIcon(data.Volume);
+        // Dropouts: audio buffer underruns in the last 10 s window (0 = clean, N/A = no data yet)
+        dropoutsEl.textContent = data.Dropouts ?? 'N/A';
+        dropoutsEl.classList.toggle('dropouts-bad', Number(data.Dropouts) > 0);
 
         const alarmValue = data.Alarm;
         if (alarmValue && !isNaN(alarmValue) && parseInt(alarmValue, 10) > 0) {

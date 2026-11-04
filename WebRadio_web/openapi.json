@@ -158,7 +158,7 @@
       "get": {
         "tags": ["radio"],
         "summary": "Current radio status",
-        "description": "Last known MQTT status topics (State, Station, Title, Volume, Alarm, Log, FreeHeap, Stations). Ask the device for fresh data by POSTing {\"command\":\"?\"}.",
+        "description": "Last known MQTT status topics (State, Station, Title, Volume, Alarm, Log, FreeHeap, Dropouts, Stations). Dropouts = audio buffer underruns in the last 10 s window (0 = clean stream, sent once on station switch; repeated 0 is suppressed). Ask the device for fresh data by POSTing {\"command\":\"?\"}.",
         "responses": { "200": { "description": "Status snapshot" } }
       }
     },

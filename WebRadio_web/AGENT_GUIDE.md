@@ -60,6 +60,14 @@ chars; `genre` ≤ 30 chars; urls unique; max 255 stations.
 | `Alarm` | seconds-from-midnight or `"Alarm OFF"` |
 | `Log` | stream info / messages |
 | `FreeHeap` | free RAM |
+| `Dropouts` | audio buffer underruns in the last 10 s window; `0` = clean stream |
+
+`Dropouts` counts how many times the ESP32 audio buffer ran dry (small RAM,
+tiny buffer — happens when the network is too slow for the stream bitrate).
+The device publishes the count every 10 s **only when it changed** (a repeated
+`0` is suppressed, so no message spam). On every station switch it resets the
+counter and publishes `0` once (if the last sent value wasn't `0`). Absent key
+= no data yet (old firmware or nothing published since server start).
 
 The snapshot is stale until the device publishes. For fresh data: `POST
 /command` with `{"command": "?"}` (device answers with a full status dump),
