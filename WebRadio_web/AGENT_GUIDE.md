@@ -66,7 +66,7 @@ chars; `genre` ≤ 30 chars; urls unique; max 255 stations.
 tiny buffer — happens when the network is too slow for the stream bitrate).
 The device publishes the count every 10 s **only when it changed** (a repeated
 `0` is suppressed, so no message spam). On every station switch it resets the
-counter and publishes `0` once (if the last sent value wasn't `0`). Absent key
+counter and publishes `0` once (if the last sent value wasn’t `0`). Absent key
 = no data yet (old firmware or nothing published since server start).
 
 The snapshot is stale until the device publishes. For fresh data: `POST
@@ -211,3 +211,18 @@ Advanced agents can talk to the broker directly instead of the HTTP API.
 
 Prefer the HTTP API unless you specifically need push events — it handles
 validation, versioning, persistence, and id management for you.
+
+## 8. Audio relay (auth-walled streams, e.g. Zeno)
+
+Some upstreams (Zeno.fm) answer bare player requests `401` (they want
+browser headers) and issue tokenized redirects the ESP32 firmware cannot
+follow. `GET /audio/<name>` (public, no token) relays such a stream:
+the server fetches the upstream with browser headers, follows the
+redirect itself and pipes plain `audio/mpeg` (+ `icy-*` headers) back.
+
+Allowlist: `data/relays.json` = `{"<name>": "https://upstream..."}`.
+It is re-read on every connection — new relays apply immediately, no
+rebuild. If the file is missing/unreadable, a hardcoded fallback applies.
+Only allowlisted names serve; anything else is `404`. Arbitrary URLs are
+never accepted (not an open proxy). Implementation note: uses `https.get`
+with full browser headers, NOT global fetch (undici gets `401` from Zeno).

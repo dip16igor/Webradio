@@ -4,6 +4,7 @@ const path = require('path');
 const mqtt = require('mqtt');
 const crypto = require('crypto');
 const http = require('http');
+const https = require('https');
 const WebSocket = require('ws');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
@@ -475,6 +476,103 @@ apiRouter.post(
 );
 
 app.use('/api/radio', apiRouter);
+
+// --- Audio relay for auth-walled streams (e.g. Zeno) ---
+// The ESP32 firmware sends bare requests (no Referer/UA) and cannot follow
+// tokenized redirects, so Zeno answers it 401. This relay fetches the upstream
+// with browser headers, follows the redirect itself and pipes plain audio back.
+// Allowlist only: no user-supplied URLs, so it cannot be used as an open proxy.
+// Relay allowlist lives in data/relays.json (bind-mounted): {"name": "https://upstream..."}.
+// New relays apply immediately — no rebuild needed. Hardcoded map is the fallback.
+const RELAYS_FILE = process.env.RELAYS_FILE || 'data/relays.json';
+const AUDIO_RELAYS_FALLBACK = {
+    oriental: 'https://stream.zeno.fm/73vzetzmswhuv',
+};
+const loadRelays = () => {
+    try {
+        const data = JSON.parse(fs.readFileSync(RELAYS_FILE, 'utf8'));
+        if (data && typeof data === 'object' && !Array.isArray(data)) return data;
+    } catch (err) { /* missing/unreadable -> fallback */ }
+    return AUDIO_RELAYS_FALLBACK;
+};
+const RELAY_UPSTREAM_HEADERS = {
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36',
+    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,audio/*,*/*;q=0.8',
+    'Accept-Language': 'en-US,en;q=0.9',
+    'Referer': 'https://zeno.fm/',
+    'Icy-MetaData': '1',
+};
+// Plain https/http client (NOT global fetch): Zeno answers fetch-style
+// requests 401, but the same headers over https.get get 302 + token.
+const fetchUpstreamRaw = (url, timeoutMs) => new Promise((resolve, reject) => {
+    const mod = new URL(url).protocol === 'https:' ? https : http;
+    const req = mod.get(url, { headers: RELAY_UPSTREAM_HEADERS, timeout: timeoutMs }, resolve);
+    req.on('timeout', () => req.destroy(new Error('upstream timeout')));
+    req.on('error', reject);
+});
+const fetchUpstreamFollow = async (url, timeoutMs, maxRedirects = 5) => {
+    let current = url;
+    for (let i = 0; i <= maxRedirects; i++) {
+        const up = await fetchUpstreamRaw(current, timeoutMs);
+        if ([301, 302, 303, 307, 308].includes(up.statusCode) && up.headers.location) {
+            up.resume(); // discard redirect body
+            current = new URL(up.headers.location, current).toString();
+            continue;
+        }
+        return up;
+    }
+    throw new Error('too many redirects');
+};
+
+// Open the upstream with one retry: transient timeouts and the token wall
+// (401/403) both deserve a second attempt with a fresh token.
+const openUpstream = async (url, timeoutMs, attempts = 2) => {
+    let last = null;
+    for (let i = 0; i < attempts; i++) {
+        try {
+            const up = await fetchUpstreamFollow(url, timeoutMs);
+            if (up.statusCode !== 401 && up.statusCode !== 403) return up;
+            up.resume();
+            last = up;
+        } catch (err) {
+            last = err;
+        }
+        if (i < attempts - 1) await new Promise((r) => setTimeout(r, 1500));
+    }
+    if (last && typeof last.statusCode === 'number') return last;
+    throw (last || new Error('upstream unavailable'));
+};
+
+app.get('/audio/:name', async (req, res) => {
+    const upstream = loadRelays()[req.params.name];
+    if (typeof upstream !== 'string' || !/^https?:\/\/.+/.test(upstream)) {
+        return res.status(404).type('text/plain').send('unknown relay');
+    }
+    try {
+        const up = await openUpstream(upstream, 8000, 2);
+        if (up.statusCode !== 200) {
+            console.error(`Audio relay [${req.params.name}]: upstream ${up.statusCode}`);
+            up.resume();
+            return res.status(502).type('text/plain').send('upstream unavailable');
+        }
+        res.status(200);
+        res.set('Content-Type', up.headers['content-type'] || 'audio/mpeg');
+        for (const [k, v] of Object.entries(up.headers)) {
+            if (k.startsWith('icy-')) res.set(k, v);
+        }
+        res.set('Accept-Ranges', 'none');
+        up.on('error', () => { try { res.end(); } catch (e) { /* noop */ } });
+        req.on('close', () => { try { up.destroy(); } catch (e) { /* noop */ } });
+        up.pipe(res);
+    } catch (err) {
+        console.error(`Audio relay [${req.params.name}] failed:`, err.message);
+        if (!res.headersSent) {
+            res.status(502).type('text/plain').send('relay failed');
+        } else {
+            try { res.end(); } catch (e) { /* noop */ }
+        }
+    }
+});
 
 // --- OpenAPI spec (API discovery for AI agents and tools) ---
 apiRouter.get('/openapi.json', (req, res) => {

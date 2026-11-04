@@ -1,401 +1,444 @@
 {
-  "version": 1,
-  "updatedAt": "2026-08-22T09:53:56.385861+00:00",
+  "version": 19,
+  "updatedAt": "2026-10-19T09:55:42.660Z",
   "stations": [
     {
+      "id": 1,
       "name": "Silver Rain",
-      "genre": "radio",
-      "url": "http://silverrain.hostingradio.ru/silver128.mp3"
+      "url": "http://silverrain.hostingradio.ru/silver128.mp3",
+      "genre": "radio"
     },
     {
-      "name": "Relax",
-      "genre": "relax",
-      "url": "https://live.radiospinner.com/smthlng-64"
-    },
-    {
-      "name": "Relax FM",
-      "genre": "relax",
-      "url": "http://ic7.101.ru:8000/v13_1"
-    },
-    {
+      "id": 3,
       "name": "RFM Queen",
-      "genre": "rock",
-      "url": "http://rmfstream1.interia.pl:8000/rmf_queen"
+      "url": "http://rmfstream1.interia.pl:8000/rmf_queen",
+      "genre": "rock"
     },
     {
+      "id": 4,
       "name": "ProBeat FM",
-      "genre": "electronic",
-      "url": "http://16bitfm.com:8000/main_mp3_128"
+      "url": "http://16bitfm.com:8000/main_mp3_128",
+      "genre": "electronic"
     },
     {
+      "id": 5,
       "name": "Cafe_off",
-      "genre": "radio",
-      "url": "http://cafe.amgradio.ru/Cafe"
+      "url": "http://cafe.amgradio.ru/Cafe",
+      "genre": "radio"
     },
     {
+      "id": 6,
       "name": "chantefrance70s",
-      "genre": "radio",
-      "url": "http://chantefrance70s.ice.infomaniak.ch/chantefrance70s-96.aac"
+      "url": "http://chantefrance70s.ice.infomaniak.ch/chantefrance70s-96.aac",
+      "genre": "radio"
     },
     {
+      "id": 7,
       "name": "Prodigy",
-      "genre": "electronic",
-      "url": "http://dfm.hostingradio.ru/prodigy96.aacp"
+      "url": "http://dfm.hostingradio.ru/prodigy96.aacp",
+      "genre": "electronic"
     },
     {
-      "name": "blackstation",
-      "genre": "electronic",
-      "url": "http://getradio.me/blvckstation"
-    },
-    {
+      "id": 9,
       "name": "Ibiza Radio",
-      "genre": "electronic",
-      "url": "http://ibizaglobalradio.streaming-pro.com:8024/stream"
+      "url": "http://ibizaglobalradio.streaming-pro.com:8024/stream",
+      "genre": "electronic"
     },
     {
+      "id": 10,
       "name": "Kiss Kiss Rock",
-      "genre": "rock",
-      "url": "http://ice06.fluidstream.net:8080/kk_rock.mp3"
+      "url": "http://ice06.fluidstream.net:8080/kk_rock.mp3",
+      "genre": "rock"
     },
     {
+      "id": 11,
       "name": "Relax web radio",
-      "genre": "relax",
-      "url": "http://iis.ge:8000/relax.mp3"
+      "url": "http://iis.ge:8000/relax.mp3",
+      "genre": "relax"
     },
     {
+      "id": 12,
       "name": "prog",
-      "genre": "rock",
-      "url": "http://jfm1.hostingradio.ru:14536/prog.mp3"
+      "url": "http://jfm1.hostingradio.ru:14536/prog.mp3",
+      "genre": "rock"
     },
     {
+      "id": 13,
       "name": "Smooth Jazz",
-      "genre": "jazz",
-      "url": "http://jfm1.hostingradio.ru:14536/sjstream.mp3"
+      "url": "http://jfm1.hostingradio.ru:14536/sjstream.mp3",
+      "genre": "jazz"
     },
     {
+      "id": 14,
       "name": "Spokoinoe Radio",
-      "genre": "relax",
-      "url": "http://listen1.myradio24.com:9000/6262"
+      "url": "http://listen1.myradio24.com:9000/6262",
+      "genre": "relax"
     },
     {
+      "id": 15,
       "name": "Enigmatic robot",
-      "genre": "lounge",
-      "url": "http://listen2.myradio24.com:9000/8226"
+      "url": "http://listen2.myradio24.com:9000/8226",
+      "genre": "lounge"
     },
     {
+      "id": 16,
       "name": "COVER",
-      "genre": "rock",
-      "url": "http://maximum.hostingradio.ru/maxcover96.aacp"
+      "url": "http://maximum.hostingradio.ru/maxcover96.aacp",
+      "genre": "rock"
     },
     {
+      "id": 17,
       "name": "PUNK",
-      "genre": "rock",
-      "url": "http://maximum.hostingradio.ru/maxpunk96.aacp"
+      "url": "http://maximum.hostingradio.ru/maxpunk96.aacp",
+      "genre": "rock"
     },
     {
+      "id": 18,
       "name": "Nirvana",
-      "genre": "rock",
-      "url": "http://maximum.hostingradio.ru/nirvana96.aacp"
+      "url": "http://maximum.hostingradio.ru/nirvana96.aacp",
+      "genre": "rock"
     },
     {
+      "id": 19,
       "name": "JAZZ",
-      "genre": "jazz",
-      "url": "http://montecarlo.hostingradio.ru/mcjazz96.aacp"
+      "url": "http://montecarlo.hostingradio.ru/mcjazz96.aacp",
+      "genre": "jazz"
     },
     {
-      "name": "NRJ LOUNGE",
-      "genre": "lounge",
-      "url": "http://nrj.de/lounge"
-    },
-    {
-      "name": "90s",
-      "genre": "radio",
-      "url": "http://prmstrm.1.fm:8000/90s"
-    },
-    {
-      "name": "Adore jazz",
-      "genre": "jazz",
-      "url": "http://prmstrm.1.fm:8000/ajazz"
-    },
-    {
-      "name": "Ambient Psychill",
-      "genre": "ambient",
-      "url": "http://prmstrm.1.fm:8000/ambientpsy"
-    },
-    {
-      "name": "Bossa Nova",
-      "genre": "radio",
-      "url": "http://prmstrm.1.fm:8000/bossanova"
-    },
-    {
-      "name": "Brazilian Birds",
-      "genre": "nature",
-      "url": "http://prmstrm.1.fm:8000/brazilianbirds"
-    },
-    {
-      "name": "Classic Country",
-      "genre": "radio",
-      "url": "http://prmstrm.1.fm:8000/ccountry"
-    },
-    {
-      "name": "Chillout Lounge",
-      "genre": "lounge",
-      "url": "http://prmstrm.1.fm:8000/chilloutlounge"
-    },
-    {
-      "name": "Costa Delmar",
-      "genre": "lounge",
-      "url": "http://prmstrm.1.fm:8000/costadelmarchillout"
-    },
-    {
-      "name": "High Voltage",
-      "genre": "rock",
-      "url": "http://prmstrm.1.fm:8000/highvoltage"
-    },
-    {
-      "name": "Italia On Air",
-      "genre": "radio",
-      "url": "http://prmstrm.1.fm:8000/kidsfm"
-    },
-    {
-      "name": "America's Best Ballads",
-      "genre": "radio",
-      "url": "http://prmstrm.1.fm:8000/onelive"
-    },
-    {
-      "name": "Radio Gaia",
-      "genre": "relax",
-      "url": "http://prmstrm.1.fm:8000/radiogaia"
-    },
-    {
-      "name": "Rock Classics",
-      "genre": "rock",
-      "url": "http://prmstrm.1.fm:8000/rockclassics"
-    },
-    {
-      "name": "Smooth Jazz",
-      "genre": "jazz",
-      "url": "http://prmstrm.1.fm:8000/smoothjazz"
-    },
-    {
-      "name": "Spa",
-      "genre": "relax",
-      "url": "http://prmstrm.1.fm:8000/spa"
-    },
-    {
+      "id": 36,
       "name": "186mph HQ",
-      "genre": "electronic",
-      "url": "http://radio.promodj.com:8000/186mph-192"
+      "url": "http://radio.promodj.com:8000/186mph-192",
+      "genre": "electronic"
     },
     {
+      "id": 37,
       "name": "Mini HQ",
-      "genre": "electronic",
-      "url": "http://radio.promodj.com:8000/mini-192"
+      "url": "http://radio.promodj.com:8000/mini-192",
+      "genre": "electronic"
     },
     {
+      "id": 38,
       "name": "Ambient",
-      "genre": "ambient",
-      "url": "http://radiorecord.hostingradio.ru/ambient96.aacp"
+      "url": "http://radiorecord.hostingradio.ru/ambient96.aacp",
+      "genre": "ambient"
     },
     {
+      "id": 39,
       "name": "Spacemusic",
-      "genre": "ambient",
-      "url": "http://79.111.119.111:8004/spacemusic"
+      "url": "http://79.111.119.111:8004/spacemusic",
+      "genre": "ambient"
     },
     {
+      "id": 40,
       "name": "Sector Space",
-      "genre": "ambient",
-      "url": "http://89.223.45.5:8000/space-160"
+      "url": "http://89.223.45.5:8000/space-160",
+      "genre": "ambient"
     },
     {
+      "id": 41,
       "name": "Cadillac",
-      "genre": "radio",
-      "url": "http://radiorecord.hostingradio.ru/cadillac96.aacp"
+      "url": "http://radiorecord.hostingradio.ru/cadillac96.aacp",
+      "genre": "radio"
     },
     {
+      "id": 42,
       "name": "Chil",
-      "genre": "lounge",
-      "url": "http://radiorecord.hostingradio.ru/chil96.aacp"
+      "url": "http://radiorecord.hostingradio.ru/chil96.aacp",
+      "genre": "lounge"
     },
     {
+      "id": 43,
       "name": "Chillhouse",
-      "genre": "lounge",
-      "url": "http://radiorecord.hostingradio.ru/chillhouse96.aacp"
+      "url": "http://radiorecord.hostingradio.ru/chillhouse96.aacp",
+      "genre": "lounge"
     },
     {
+      "id": 44,
       "name": "Ibiza",
-      "genre": "electronic",
-      "url": "http://radiorecord.hostingradio.ru/ibiza96.aacp"
+      "url": "http://radiorecord.hostingradio.ru/ibiza96.aacp",
+      "genre": "electronic"
     },
     {
+      "id": 45,
       "name": "Summer Lounge",
-      "genre": "lounge",
-      "url": "http://radiorecord.hostingradio.ru/summerlounge96.aacp"
+      "url": "http://radiorecord.hostingradio.ru/summerlounge96.aacp",
+      "genre": "lounge"
     },
     {
+      "id": 46,
       "name": "Lounge",
-      "genre": "jazz",
-      "url": "http://rautemusik-de-hz-fal-stream12.radiohost.de/lounge"
+      "url": "http://rautemusik-de-hz-fal-stream12.radiohost.de/lounge",
+      "genre": "jazz"
     },
     {
-      "name": "Real FM Radio Relax",
-      "genre": "relax",
-      "url": "http://realfm.net:9500/rfr"
-    },
-    {
+      "id": 48,
       "name": "rouge-rockpop-high",
-      "genre": "rock",
-      "url": "http://rouge-rockpop.ice.infomaniak.ch/rouge-rockpop-high.mp3"
+      "url": "http://rouge-rockpop.ice.infomaniak.ch/rouge-rockpop-high.mp3",
+      "genre": "rock"
     },
     {
+      "id": 49,
       "name": "Aplus.FM Relax",
-      "genre": "relax",
-      "url": "http://s.aplus.fm:9000/aplus_relax_128"
+      "url": "http://s.aplus.fm:9000/aplus_relax_128",
+      "genre": "relax"
     },
     {
-      "name": "Kiss FM",
-      "genre": "rock",
-      "url": "http://s7.radioheart.ru:8015/nonstop"
-    },
-    {
-      "name": "1.FM - Kids FM",
-      "genre": "radio",
-      "url": "http://sc-kidsfm.1.fm:10112/"
-    },
-    {
+      "id": 52,
       "name": "bigfm-sunsetlounge",
-      "genre": "lounge",
-      "url": "http://streams.bigfm.de/bigfm-sunsetlounge-128-mp3"
+      "url": "http://streams.bigfm.de/bigfm-sunsetlounge-128-mp3",
+      "genre": "lounge"
     },
     {
-      "name": "ZaycevFM Relax",
-      "genre": "relax",
-      "url": "http://zaycevfm.cdnvideo.ru/ZaycevFM_relax_256.mp3"
-    },
-    {
+      "id": 54,
       "name": "Zvuki",
-      "genre": "nature",
-      "url": "http://zvuki.amgradio.ru/Zvuki"
+      "url": "http://zvuki.amgradio.ru/Zvuki",
+      "genre": "nature"
     },
     {
+      "id": 55,
       "name": "Relax Morning Birds",
-      "genre": "nature",
-      "url": "https://ice6.abradio.cz/relax-morning-birds128.mp3"
+      "url": "https://ice6.abradio.cz/relax-morning-birds128.mp3",
+      "genre": "nature"
     },
     {
-      "name": "90s Rock Hits",
-      "genre": "rock",
-      "url": "https://live.radiospinner.com/90srckhts-64"
-    },
-    {
-      "name": "Bird Sounds",
-      "genre": "nature",
-      "url": "https://live.radiospinner.com/bird-sounds-64"
-    },
-    {
-      "name": "BL Rock",
-      "genre": "rock",
-      "url": "https://live.radiospinner.com/blsrck-64"
-    },
-    {
-      "name": "CDMR",
-      "genre": "lounge",
-      "url": "https://live.radiospinner.com/cdmr-64"
-    },
-    {
-      "name": "Complete Relaxation",
-      "genre": "relax",
-      "url": "https://live.radiospinner.com/complete-relaxation-64"
-    },
-    {
-      "name": "LFCH",
-      "genre": "jazz",
-      "url": "https://live.radiospinner.com/lfch-64"
-    },
-    {
-      "name": "Lounge",
-      "genre": "lounge",
-      "url": "https://live.radiospinner.com/lounge-64"
-    },
-    {
-      "name": "Mellow Jazz",
-      "genre": "jazz",
-      "url": "https://live.radiospinner.com/mellow-jazz-64"
-    },
-    {
-      "name": "Nature",
-      "genre": "nature",
-      "url": "https://live.radiospinner.com/nature-64"
-    },
-    {
-      "name": "NGMTCBR",
-      "genre": "relax",
-      "url": "https://live.radiospinner.com/ngmtcbr-64"
-    },
-    {
-      "name": "NWAGEWV",
-      "genre": "lounge",
-      "url": "https://live.radiospinner.com/nwagewv-64"
-    },
-    {
-      "name": "Smooth Jazz",
-      "genre": "jazz",
-      "url": "https://live.radiospinner.com/smooth-jazz-64"
-    },
-    {
-      "name": "~~ Море ~~",
-      "genre": "nature",
-      "url": "https://live.radiospinner.com/sslp-64"
-    },
-    {
+      "id": 69,
       "name": "Blues N Rock",
-      "genre": "rock",
-      "url": "https://ouifmbluesnrock.ice.infomaniak.ch/ouifmbluesnrock-128.mp3"
+      "url": "https://ouifmbluesnrock.ice.infomaniak.ch/ouifmbluesnrock-128.mp3",
+      "genre": "rock"
     },
     {
+      "id": 70,
       "name": "LoFi Radio",
-      "genre": "lounge",
-      "url": "https://play.lofiradio.ru:8000/mp3_320"
+      "url": "https://play.lofiradio.ru:8000/mp3_320",
+      "genre": "lounge"
     },
     {
-      "name": "VoltageFM GOLD",
-      "genre": "radio",
-      "url": "https://radio.voltagefm.ru:9009/VoltageGOLD_64_aac"
-    },
-    {
+      "id": 72,
       "name": "Mixdance Relax",
-      "genre": "relax",
-      "url": "https://stream.mixadance.fm/relax"
+      "url": "https://stream.mixadance.fm/relax",
+      "genre": "relax"
     },
     {
+      "id": 73,
       "name": "Relax Cafe",
-      "genre": "relax",
-      "url": "https://stream.relaxfm.ee/cafe_HD"
+      "url": "https://stream.relaxfm.ee/cafe_HD",
+      "genre": "relax"
     },
     {
+      "id": 74,
       "name": "Sleep Kids",
-      "genre": "relax",
-      "url": "https://streaming.positivity.radio/pr/sleepkids/icecast.audio"
+      "url": "https://streaming.positivity.radio/pr/sleepkids/icecast.audio",
+      "genre": "relax"
     },
     {
+      "id": 75,
       "name": "WebRadio0007",
-      "genre": "relax",
-      "url": "https://webradio0007.ice.infomaniak.ch/webradio0007-128.mp3"
+      "url": "https://webradio0007.ice.infomaniak.ch/webradio0007-128.mp3",
+      "genre": "relax"
     },
     {
+      "id": 76,
       "name": "YOGA",
-      "genre": "relax",
-      "url": "http://play.yogaradio.org.ua:8000/YOGAradio"
+      "url": "http://play.yogaradio.org.ua:8000/YOGAradio",
+      "genre": "relax"
     },
     {
-      "name": "dip16",
-      "genre": "rock",
-      "url": "http://80.211.205.234:8001/radio192"
+      "id": 77,
+      "name": "Groove Salad",
+      "url": "https://ice2.somafm.com/groovesalad-128-mp3",
+      "genre": "downtempo"
     },
     {
-      "name": "dip16 128",
-      "genre": "rock",
-      "url": "http://80.211.205.234:8001/radio128"
+      "id": 78,
+      "name": "Groove Salad Classic",
+      "url": "https://ice2.somafm.com/gsclassic-128-mp3",
+      "genre": "downtempo"
+    },
+    {
+      "id": 79,
+      "name": "Beat Blender",
+      "url": "https://ice2.somafm.com/beatblender-128-mp3",
+      "genre": "downtempo"
+    },
+    {
+      "id": 80,
+      "name": "Suburbs of Goa",
+      "url": "https://ice2.somafm.com/suburbsofgoa-128-mp3",
+      "genre": "chill"
+    },
+    {
+      "id": 81,
+      "name": "Fluid",
+      "url": "https://ice2.somafm.com/fluid-128-mp3",
+      "genre": "trip-hop"
+    },
+    {
+      "id": 82,
+      "name": "Lush",
+      "url": "https://ice2.somafm.com/lush-128-mp3",
+      "genre": "chillout"
+    },
+    {
+      "id": 83,
+      "name": "Illinois Street Lounge",
+      "url": "https://ice2.somafm.com/illstreet-128-mp3",
+      "genre": "lounge"
+    },
+    {
+      "id": 84,
+      "name": "Secret Agent",
+      "url": "https://ice2.somafm.com/secretagent-128-mp3",
+      "genre": "lounge"
+    },
+    {
+      "id": 85,
+      "name": "Sonic Universe",
+      "url": "https://ice2.somafm.com/sonicuniverse-128-mp3",
+      "genre": "jazz"
+    },
+    {
+      "id": 86,
+      "name": "ThistleRadio",
+      "url": "https://ice2.somafm.com/thistle-128-mp3",
+      "genre": "jazz"
+    },
+    {
+      "id": 87,
+      "name": "Chillits",
+      "url": "https://ice2.somafm.com/chillits-128-mp3",
+      "genre": "chill"
+    },
+    {
+      "id": 88,
+      "name": "Cliqhop",
+      "url": "https://ice2.somafm.com/cliqhop-128-mp3",
+      "genre": "electronic"
+    },
+    {
+      "id": 89,
+      "name": "Drone Zone",
+      "url": "https://ice2.somafm.com/dronezone-128-mp3",
+      "genre": "ambient"
+    },
+    {
+      "id": 90,
+      "name": "Deep Space One",
+      "url": "https://ice2.somafm.com/deepspaceone-128-mp3",
+      "genre": "ambient"
+    },
+    {
+      "id": 91,
+      "name": "Space Station Soma",
+      "url": "https://ice2.somafm.com/spacestation-128-mp3",
+      "genre": "ambient"
+    },
+    {
+      "id": 92,
+      "name": "Mission Control",
+      "url": "https://ice2.somafm.com/missioncontrol-128-mp3",
+      "genre": "ambient"
+    },
+    {
+      "id": 93,
+      "name": "Synphaera Radio",
+      "url": "https://ice2.somafm.com/synphaera-128-mp3",
+      "genre": "ambient"
+    },
+    {
+      "id": 94,
+      "name": "n5MD Radio",
+      "url": "https://ice2.somafm.com/n5md-128-mp3",
+      "genre": "ambient"
+    },
+    {
+      "id": 95,
+      "name": "Digitalis",
+      "url": "https://ice2.somafm.com/digitalis-128-mp3",
+      "genre": "ambient"
+    },
+    {
+      "id": 96,
+      "name": "Dark Zone",
+      "url": "https://ice2.somafm.com/darkzone-128-mp3",
+      "genre": "ambient"
+    },
+    {
+      "id": 97,
+      "name": "Bossa Nova",
+      "url": "https://ice2.somafm.com/bossa-128-mp3",
+      "genre": "lounge"
+    },
+    {
+      "id": 98,
+      "name": "Vaporwaves",
+      "url": "https://ice2.somafm.com/vaporwaves-128-mp3",
+      "genre": "lofi"
+    },
+    {
+      "id": 99,
+      "name": "Indie Pop Rocks",
+      "url": "https://ice2.somafm.com/indiepop-128-mp3",
+      "genre": "rock"
+    },
+    {
+      "id": 100,
+      "name": "The Trip",
+      "url": "https://ice2.somafm.com/thetrip-128-mp3",
+      "genre": "rock"
+    },
+    {
+      "id": 101,
+      "name": "Left Coast 70s",
+      "url": "https://ice2.somafm.com/seventies-128-mp3",
+      "genre": "rock"
+    },
+    {
+      "id": 102,
+      "name": "Tiki Time",
+      "url": "https://ice2.somafm.com/tikitime-128-mp3",
+      "genre": "lounge"
+    },
+    {
+      "id": 103,
+      "name": "InSound",
+      "url": "https://ice2.somafm.com/insound-128-mp3",
+      "genre": "electronic"
+    },
+    {
+      "id": 104,
+      "name": "Radio Swiss Jazz",
+      "url": "https://stream.srg-ssr.ch/m/rsj/mp3_128",
+      "genre": "jazz"
+    },
+    {
+      "id": 105,
+      "name": "Radio Swiss Pop",
+      "url": "https://stream.srg-ssr.ch/m/rsp/mp3_128",
+      "genre": "pop"
+    },
+    {
+      "id": 106,
+      "name": "Radio Paradise",
+      "url": "https://stream.radioparadise.com/mp3-192",
+      "genre": "radio"
+    },
+    {
+      "id": 107,
+      "name": "Radio Paradise Rock",
+      "url": "https://stream.radioparadise.com/rock-192",
+      "genre": "rock"
+    },
+    {
+      "id": 108,
+      "name": "Radio Paradise Mellow",
+      "url": "https://stream.radioparadise.com/mellow-192",
+      "genre": "relax"
+    },
+    {
+      "id": 109,
+      "name": "Oriental Deep House",
+      "url": "https://mirrorhub.space:8443/webradio/audio/oriental",
+      "genre": "electronic"
     }
   ]
 }
