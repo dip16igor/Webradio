@@ -13,6 +13,7 @@
 #include <PubSubClient.h>
 #include <ArduinoJson.h>
 #include <EEPROM.h>
+#include "esp_wifi.h" // esp_wifi_set_ps() — управление Wi-Fi power save
 
 #define I2S_DOUT 25 // DIN connection
 #define I2S_BCLK 27 // Bit clock
@@ -1260,6 +1261,16 @@ void setup() // ************************************************* SETUP ********
         }
         WiFiFail = 0;
         Serial.println("Connected!");
+        // --- Отключаем Wi-Fi power save (модемный сон) --------------------------
+        // По умолчанию станция уходит в DTIM-сон: приёмник просыпается не на
+        // каждый пакет, из-за чего TCP-окно простаивает по 100-300 мс. Для
+        // потокового аудио это прямые underrun'ы. WIFI_PS_NONE держит радио
+        // активным: расход ~20-40 мА больше, зато нет периодических залипаний.
+        WiFi.setSleep(false);            // Arduino-обёртка
+        esp_wifi_set_ps(WIFI_PS_NONE);   // то же на уровне IDF, до кучи
+        Serial.print("WiFi power save: ");
+        Serial.println(WiFi.getSleep() ? "ON" : "OFF");
+        // ------------------------------------------------------------------------
         WiFi_SSID = ssidList[j];
       }
     }
