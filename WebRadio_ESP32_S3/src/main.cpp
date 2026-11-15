@@ -138,6 +138,18 @@ unsigned long previousMillis2 = 0; // variable to store the previous millis() va
 unsigned long interval1 = 200;     // interval in milliseconds. volume increase step
 unsigned long interval2 = 10000;   // interval in milliseconds (10 sec)
 
+// --- Non-blocking timers (замена delay() в пути воспроизведения) ------------
+// Раньше после connecttohost() стоял delay(2000): он останавливал весь loop(),
+// за эти 2 с audio.loop() не вызывался и буфер не накачивался, а MQTT не
+// обслуживался. Теперь старт нарастания громкости планируется по времени, а
+// экран гасится отдельным таймером — loop() продолжает крутиться.
+unsigned long PowerOnRampAt = 0;         // 0 = ничего не запланировано
+unsigned long PowerOnRampInterval = 100; // шаг нарастания громкости при старте
+unsigned long ScreenOffAt = 0;           // 0 = ничего не запланировано
+unsigned long LastRetryAt = 0;           // время последней попытки переподключения
+bool ScreenDirty = false;                // экран нужно перерисовать (из audio-callback)
+unsigned long LastScreenDraw = 0;        // время последней отрисовки из loop()
+
 bool restart = 0;
 unsigned long uptime;
 unsigned long currentMillis = 0;
@@ -513,10 +525,8 @@ void callback(char *topic, byte *payload, unsigned int length)
       u8g2.setCursor(25, 32);
       u8g2.print("POWER OFF");
       u8g2.sendBuffer();
-      delay(2000);
-      u8g2.clearBuffer();
-      u8g2.sendBuffer();
-      u8g2.setContrast(1);
+      // вместо delay(2000) + гашения экрана: гасим по таймеру в loop()
+      ScreenOffAt = millis() + 2000;
       audio.stopSong();
     }
     if (message == "1") // POWER ON
@@ -548,11 +558,11 @@ void callback(char *topic, byte *payload, unsigned int length)
       audio.setVolume(vol);                         // 0...21
       audio.connecttohost(getStationURL(NEWStation)); // switch station
       resetDropoutStats();
-      delay(2000);
-
-      interval1 = 100; // time step for volume increase in ms
-      PowerOnFast = 1; // start fast volume increase
-      previousMillis1 = millis();
+      // вместо delay(2000): старт нарастания громкости планируем на потом,
+      // loop() при этом продолжает качать буфер и обслуживать MQTT
+      PowerOnFast = 0;
+      PowerOnRampInterval = 100; // time step for volume increase in ms
+      PowerOnRampAt = millis() + 2000;
 
       // UpdateScreen();
     }
@@ -579,11 +589,10 @@ void callback(char *topic, byte *payload, unsigned int length)
       OLDStation = NEWStation;
       audio.connecttohost(getStationURL(NEWStation)); // switch to BIRDS station
       resetDropoutStats();
-      delay(2000);
+      PowerOnFast = 0;
+      PowerOnRampInterval = 100; // time step for volume increase in ms
+      PowerOnRampAt = millis() + 2000;
 
-      interval1 = 100; // time step for volume increase in ms
-      PowerOnFast = 1; // start fast volume increase
-      previousMillis1 = millis();
       // client.publish(topic_out, "WebRadio ON");
       client.publish(topic_state, "Power ON");
     }
@@ -613,11 +622,9 @@ void callback(char *topic, byte *payload, unsigned int length)
       OLDStation = NEWStation;
       audio.connecttohost(getStationURL(NEWStation)); // switch to station
       resetDropoutStats();
-      delay(2000);
-
-      interval1 = 100; // time step for volume increase in ms
-      PowerOnFast = 1; // start fast volume increase
-      previousMillis1 = millis();
+      PowerOnFast = 0;
+      PowerOnRampInterval = 100; // time step for volume increase in ms
+      PowerOnRampAt = millis() + 2000;
     }
 
     if (payload[0] == 'h') // link to station
@@ -1036,11 +1043,9 @@ void button_Power(void)
     audio.setVolume(vol);                         // 0...21
     audio.connecttohost(getStationURL(NEWStation)); // switch station
     resetDropoutStats();
-    delay(2000);
-
-    interval1 = 100; // time step for volume increase in ms
-    PowerOnFast = 1; // start fast volume increase
-    previousMillis1 = millis();
+    PowerOnFast = 0;
+    PowerOnRampInterval = 100; // time step for volume increase in ms
+    PowerOnRampAt = millis() + 2000;
 
     UpdateScreen();
   }
@@ -1068,10 +1073,8 @@ void button_Power(void)
     u8g2.setCursor(25, 32);
     u8g2.print("POWER OFF");
     u8g2.sendBuffer();
-    delay(2000);
-    u8g2.clearBuffer();
-    u8g2.sendBuffer();
-    u8g2.setContrast(1);
+    // вместо delay(2000) + гашения экрана: гасим по таймеру в loop()
+    ScreenOffAt = millis() + 2000;
     audio.stopSong();
     // audio.stopSong();
   }
@@ -1194,6 +1197,27 @@ void setup() // ************************************************* SETUP ********
 
   pinMode(FMTX, OUTPUT);   //
   digitalWrite(FMTX, LOW); // FMTX power
+
+  // --- Явный размер входного буфера (PSRAM) --------------------------------
+  // ESP32-audioI2S по умолчанию берёт 640 КБ в PSRAM (или 16 КБ в RAM, если
+  // PSRAM не нашлась/не выделилась). 640 КБ — это ~40 с при 128 kbps, и при
+  // любой длинной просадке канала буфер вычерпывается. Здесь размер выбираем
+  // по фактическому объёму PSRAM платы, а сколько реально выделилось —
+  // увидим в логе из audio_info() ("inputBufferSize: N bytes").
+  {
+    size_t psram_total = ESP.getPsramSize();
+    size_t psram_buf = 0;
+    if (psram_total >= 8 * 1024 * 1024)
+      psram_buf = 4 * 1024 * 1024; // ~4.5 мин при 128 kbps
+    else if (psram_total >= 4 * 1024 * 1024)
+      psram_buf = 2 * 1024 * 1024;
+    else if (psram_total >= 2 * 1024 * 1024)
+      psram_buf = 1 * 1024 * 1024;
+    audio.setBufsize(1600 * 10, psram_buf ? (int)psram_buf : -1); // -1 = оставить дефолт
+    Serial.printf("PSRAM total %u, free %u; input buffer requested: %u bytes\n",
+                  (unsigned)psram_total, (unsigned)ESP.getFreePsram(), (unsigned)psram_buf);
+  }
+  // -------------------------------------------------------------------------
 
   audio.setPinout(I2S_BCLK, I2S_LRC, I2S_DOUT);
   audio.setVolume(vol); // 0...21
@@ -1455,6 +1479,34 @@ void loop() //*************************************************** LOOP *********
 {
   currentMillis = millis();
 
+  // --- Обслуживание отложенных действий (замена delay() в путях старта) ----
+  if (PowerOnRampAt && (long)(currentMillis - PowerOnRampAt) >= 0)
+  {
+    PowerOnRampAt = 0;
+    interval1 = PowerOnRampInterval; // шаг нарастания громкости
+    PowerOnFast = 1;                 // start fast volume increase
+    previousMillis1 = currentMillis;
+  }
+  if (ScreenOffAt && (long)(currentMillis - ScreenOffAt) >= 0)
+  {
+    ScreenOffAt = 0;
+    u8g2.clearBuffer();
+    u8g2.sendBuffer();
+    u8g2.setContrast(1);
+  }
+  // Экран, помеченный «грязным» из audio-callback: рисуем здесь, а не внутри
+  // колбэка декодера. Не чаще 500 мс, чтобы не забивать I2C-шину.
+  if (ScreenDirty && (currentMillis - LastScreenDraw >= 500))
+  {
+    ScreenDirty = false;
+    LastScreenDraw = currentMillis;
+    if (StatusPower)
+      UpdateScreen();
+    else
+      UpdateScreen1();
+  }
+  // ------------------------------------------------------------------------
+
   if ((currentMillis - previousMillis2 >= interval2) && ReconnectLater) // Reconnect once a minute if there is no connection
   {
     previousMillis2 = currentMillis;
@@ -1688,14 +1740,21 @@ void loop() //*************************************************** LOOP *********
       resetDropoutStats();
     }
 
+    // Попытка переподключения. Раньше здесь стоял delay(100) и попытки шли
+    // каждая итерация loop(): connecttohost() сам блокирующий (DNS+TCP+TLS),
+    // поэтому получался шторм переподключений, а буфер не накачивался.
+    // Теперь не чаще одной попытки в 2 с, без блокирующей паузы.
     if (RequestFail && CounterFail < 10)
     {
-      CounterFail++;
-      Serial.print("Reconnect #");
-      Serial.println(CounterFail);
-      audio.connecttohost(getStationURL(NEWStation)); // switch station
-      delay(100);
-      previousMillis2 = millis();
+      if (LastRetryAt == 0 || (millis() - LastRetryAt >= 2000))
+      {
+        LastRetryAt = millis();
+        CounterFail++;
+        Serial.print("Reconnect #");
+        Serial.println(CounterFail);
+        audio.connecttohost(getStationURL(NEWStation)); // switch station
+        previousMillis2 = millis();
+      }
     }
     else if (CounterFail >= 10)
     {
@@ -1741,9 +1800,8 @@ void loop() //*************************************************** LOOP *********
         u8g2.sendBuffer();
         digitalWrite(RELAY1, LOW);
         digitalWrite(RELAY2, LOW);
-        delay(3000);
-        u8g2.clearBuffer();
-        u8g2.sendBuffer();
+        // вместо delay(3000) + гашения: гасим экран по таймеру в loop()
+        ScreenOffAt = millis() + 3000;
         // audio.stopSong();
 
 #ifdef ESP_WROVER
@@ -1768,6 +1826,18 @@ void loop() //*************************************************** LOOP *********
 // optional
 void audio_info(const char *info)
 {
+  // Фактически выделенный входной буфер: библиотека сообщает его при инициализации
+  // ("PSRAM found, inputBufferSize: N bytes" / "PSRAM not found, ..."). Публикуем
+  // в MQTT-лог, чтобы было видно, какой буфер реально работает на устройстве.
+  if (strstr(info, "inputBufferSize") != NULL)
+  {
+    Serial.print("BUF: ");
+    Serial.println(info);
+    char bufMsg[96];
+    snprintf(bufMsg, sizeof(bufMsg), "Buffer: %s", info);
+    client.publish(topic_out, bufMsg);
+  }
+
   if (strncmp(info, "BitRate", 7) == 0)
   {
     int length = strlen(info);      // BitRate: 128000
@@ -1959,7 +2029,7 @@ void audio_info(const char *info)
     DropoutCount++;
   }
 
-  UpdateScreen();
+  ScreenDirty = true; // рисуем в loop(), не здесь
 #ifdef DEBUG
   Serial.print("info        ");
   Serial.println(info);
@@ -1985,7 +2055,7 @@ void audio_showstation(const char *info)
   if (strncmp(info, "This is my", 10) == 0)
     info = "Silver Rain";
   NameStation = info;
-  UpdateScreen();
+  ScreenDirty = true; // рисуем в loop(), не здесь
   if (strlen(info))
   {
     // client.publish(topic_out, info);
@@ -2008,7 +2078,7 @@ void audio_showstreaminfo(const char *info)
 void audio_showstreamtitle(const char *info)
 {
   StreamTitle = info;
-  UpdateScreen();
+  ScreenDirty = true; // рисуем в loop(), не здесь
   if (strlen(info))
   {
     // client.publish(topic_out, info);
@@ -2107,11 +2177,9 @@ void PowerON_1()
     audio.setVolume(vol);                         // 0...21
     audio.connecttohost(getStationURL(NEWStation)); // switch station
     resetDropoutStats();
-    delay(2000);
-
-    interval1 = 1000 * 10; // time step for volume increase in ms
-    PowerOnFast = 1;       // start fast volume increase
-    previousMillis1 = millis();
+    PowerOnFast = 0;
+    PowerOnRampInterval = 1000 * 10; // медленное нарастание для будильника
+    PowerOnRampAt = millis() + 2000;
 
     UpdateScreen();
   }
