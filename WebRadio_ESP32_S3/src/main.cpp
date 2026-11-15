@@ -754,45 +754,35 @@ void callback(char *topic, byte *payload, unsigned int length)
 
 uint8_t reconnect(void)
 {
-  int counter = 0;
-  // Loop until we're reconnected
-  while (!client.connected())
+  // Неблокирующий вариант: ОДНА попытка за вызов, без delay() и без цикла.
+  // Раньше здесь был while + delay(1000) до 4 попыток: при падении брокера
+  // loop() вставал на несколько секунд, audio.loop() не вызывался и буфер
+  // вычерпывался. Теперь вызывающий код (setup один раз + loop каждые 5 с)
+  // сам задаёт темп повторов: не подключились — попробуем в следующий раз.
+  if (client.connected())
+    return 1;
+  Serial.print("Attempting MQTT connection... ");
+  // Create a client ID
+  String clientId = MQTT_CLIENT;
+
+  // Attempt to connect (сам connect блокирующий на время TCP, но без добавочных пауз)
+  if (client.connect(clientId.c_str(), MQTT_LOGIN, MQTT_PASS))
   {
-    Serial.print("Attempting MQTT connection... ");
-    // Create a client ID
-    String clientId = MQTT_CLIENT;
-
-    // Attempt to connect
-    if (client.connect(clientId.c_str(), MQTT_LOGIN, MQTT_PASS))
-    {
-      // digitalWrite(LED2, LOW);
-      Serial.println("connected");
-      // Once connected, publish an announcement...
-      client.publish(topic_out, "Reconnect");
-      // ... and resubscribe
-      client.subscribe(topic_in);
-      client.subscribe(topic_stations);
-      // request the current station list from the web server
-      client.publish(topic_in, "list?");
-    }
-    else
-    {
-      // digitalWrite(LED2, HIGH);
-      Serial.print("failed, rc=");
-      Serial.print(client.state());
-      Serial.println(" try again in 1 seconds");
-
-      // bot.sendMessage("connect to MQTT ..", ADMIN_CHAT_ID);
-      //  Wait 5 seconds before retrying
-      delay(1000);
-    }
-
-    counter++;
-    Serial.print(counter);
-    if (counter > 3)
-      return 0;
+    Serial.println("connected");
+    // Once connected, publish an announcement...
+    client.publish(topic_out, "Reconnect");
+    // ... and resubscribe
+    client.subscribe(topic_in);
+    client.subscribe(topic_stations);
+    // request the current station list from the web server
+    client.publish(topic_in, "list?");
+    return 1;
   }
-  return 1;
+
+  Serial.print("failed, rc=");
+  Serial.print(client.state());
+  Serial.println(" try again later");
+  return 0;
 }
 
 void UpdateScreen(void)
@@ -1344,13 +1334,26 @@ void setup() // ************************************************* SETUP ********
   timeClient.begin();
   timeClient.setTimeOffset(OffsetTime);
 
-  while (timeClient.update() == false)
+  // Раньше: while(update()==false){delay(1000);} — вечное зависание старта,
+  // если NTP недоступен. Теперь максимум 10 попыток (~5 с), дальше едем без
+  // точного времени: будильник по ненастроенным часам не сработает точно,
+  // но радио играть будет.
+  bool ntpOk = false;
+  for (int i = 0; i < 10; i++)
   {
+    if (timeClient.update())
+    {
+      ntpOk = true;
+      break;
+    }
     Serial.println("Error update time!");
-    delay(1000);
+    delay(500);
   }
 
-  setTime(timeClient.getEpochTime());
+  if (ntpOk)
+    setTime(timeClient.getEpochTime());
+  else
+    Serial.println("NTP failed, continuing without time");
 
   Serial.println(timeClient.getEpochTime());
   // setTime(5, 59, 00, 1, 1, 24); // set time to Saturday 8:29:00am Jan 1 2024
