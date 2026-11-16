@@ -288,6 +288,12 @@ void syncMetaFromAudio()
   xSemaphoreGive(metaMutex);
 }
 // Сама задача: команды -> вызовы Audio, затем накачка декодера.
+// Коалесцинг PLAY: пока мы висели в блокирующем connecttohost(), loop мог
+// накидать ещё переключений. Перед следующим коннектом забираем всё, что
+// накопилось, и играем СРАЗУ ПОСЛЕДНЮЮ выбранную станцию — промежуточные
+// не коннектим (иначе каждое давало щелчок и 0.03–1.7 с тишины).
+// Одиночный клик при пустой очереди идёт без задержек, как раньше.
+// STOP после PLAY отменяет коннект (выключили, пока переключалось).
 // vTaskDelay(1) отдаёт время WiFi/IDLE; I2S DMA (16x512 фреймов ~190 мс)
 // такой гранулярности хватает с запасом.
 void audioTask(void *param)
@@ -296,14 +302,33 @@ void audioTask(void *param)
   AudioCmd cmd;
   for (;;)
   {
-    while (xQueueReceive(audioCmdQ, &cmd, 0) == pdTRUE)
+    if (xQueueReceive(audioCmdQ, &cmd, 0) == pdTRUE)
     {
-      if (cmd.type == AUDIO_CMD_PLAY)
-        audio.connecttohost(cmd.url);
-      else if (cmd.type == AUDIO_CMD_STOP)
-        audio.stopSong(); // здесь — прямой вызов: мы и есть audioTask
-      else if (cmd.type == AUDIO_CMD_VOL)
-        audio.setVolume(cmd.vol);
+      // Собираем всё накопившееся в один батч (первая команда + хвост очереди).
+      AudioCmd batch[32];
+      int n = 0;
+      batch[n++] = cmd;
+      while (n < 32 && xQueueReceive(audioCmdQ, &batch[n], 0) == pdTRUE)
+        n++;
+      // Последний PLAY в батче — тот, на котором остановились. STOP после него
+      // отменяет коннект (выключили, пока переключалось).
+      int lastPlayIdx = -1;
+      for (int i = 0; i < n; i++)
+        if (batch[i].type == AUDIO_CMD_PLAY)
+          lastPlayIdx = i;
+      bool stopAfter = false;
+      for (int i = 0; i < n; i++)
+        if (batch[i].type == AUDIO_CMD_STOP && i > lastPlayIdx)
+          stopAfter = true;
+      if (lastPlayIdx >= 0 && !stopAfter)
+        audio.connecttohost(batch[lastPlayIdx].url);
+      for (int i = 0; i < n; i++)
+      {
+        if (batch[i].type == AUDIO_CMD_STOP)
+          audio.stopSong();
+        else if (batch[i].type == AUDIO_CMD_VOL)
+          audio.setVolume(batch[i].vol);
+      }
     }
     audio.loop();
     vTaskDelay(1);
@@ -1378,7 +1403,7 @@ void setup() // ************************************************* SETUP ********
   // Очереди и мьютекс живут с этого момента; все audioCmd*/mqttEnqueue после
   // этой точки идут через них. Если что-то не создалось — helpers тихо
   // откатываются на прямые вызовы (старое поведение).
-  audioCmdQ = xQueueCreate(24, sizeof(AudioCmd));
+  audioCmdQ = xQueueCreate(32, sizeof(AudioCmd));
   mqttOutQ = xQueueCreate(16, sizeof(MqttOutMsg));
   metaMutex = xSemaphoreCreateMutex();
   if (audioCmdQ && mqttOutQ && metaMutex)
