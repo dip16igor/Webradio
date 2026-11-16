@@ -305,7 +305,8 @@ void audioTask(void *param)
     if (xQueueReceive(audioCmdQ, &cmd, 0) == pdTRUE)
     {
       // Собираем всё накопившееся в один батч (первая команда + хвост очереди).
-      AudioCmd batch[32];
+      // static: 32 команды x ~520 байт = ~16 КБ — на стек задачи не влезет.
+      static AudioCmd batch[32];
       int n = 0;
       batch[n++] = cmd;
       while (n < 32 && xQueueReceive(audioCmdQ, &batch[n], 0) == pdTRUE)
@@ -1408,7 +1409,7 @@ void setup() // ************************************************* SETUP ********
   metaMutex = xSemaphoreCreateMutex();
   if (audioCmdQ && mqttOutQ && metaMutex)
   {
-    if (xTaskCreatePinnedToCore(audioTask, "audio", 12288, NULL, 3, NULL, 0) != pdPASS)
+    if (xTaskCreatePinnedToCore(audioTask, "audio", 16384, NULL, 3, NULL, 0) != pdPASS)
       Serial.println("FATAL: audio task not created");
     else
       Serial.println("audio task started on core 0");
