@@ -121,6 +121,11 @@ volatile bool Dropouts = 0;
 // published to topic_dropouts only when the value changes (repeated 0 suppressed)
 // (++ из audioTask, чтение/сброс из loop — volatile)
 volatile unsigned int DropoutCount = 0;
+// Метка последнего переключения станции (ставит loop в audioCmdPlay).
+// Первые секунды после коннекта буфер заведомо пустой (накачивается) —
+// "slow stream" в это время не считаем, иначе метрика шумит на каждом старте.
+volatile unsigned long lastPlayAt = 0;
+const unsigned long DropoutGraceMs = 10000; // 10 секунд тишины счётчика после PLAY
 unsigned long DropoutWindowStart = 0;
 const unsigned long DropoutWindowInterval = 10000; // 10 seconds
 int LastDropoutPublished = 0;
@@ -199,6 +204,7 @@ static uint32_t lastMetaSeq = 0; // loop-сторона
 // прямым вызовом как раньше.
 inline void audioCmdPlay(const char *url)
 {
+  lastPlayAt = millis(); // глушим счётчик дропаутов на DropoutGraceMs (буфер накачивается)
   if (audioCmdQ)
   {
     AudioCmd c;
@@ -680,9 +686,8 @@ void callback(char *topic, byte *payload, unsigned int length)
     if (message == "vol-") // VOL-
     {
       PowerOnFast = 0; // Stop automatic volume increase
-      vol = vol - 1;
-      if (vol <= 0)
-        vol = 0;
+      if (vol > 0)
+        vol = vol - 1; // защита от переполнения uint8_t (0-1=255)
       audioCmdVol(vol);  // 0...21 — в очередь audioTask, не блокирует loop
       itoa(vol, buffer, 10); // Convert int value to string
 
@@ -1800,9 +1805,8 @@ void loop() //*************************************************** LOOP *********
   }
   if (b3.step() && StatusPower == 1)
   {
-    vol--; // decrease vol
-    if (vol <= 0)
-      vol = 0;
+    if (vol > 0)
+      vol--; // decrease vol, защита от переполнения uint8_t
     UpdateScreen();
     audioCmdVol(vol);
 
@@ -2007,7 +2011,8 @@ void loop() //*************************************************** LOOP *********
       // your code that should run every second
       previousMillis = currentMillis; // update the previousMillis value
 
-      vol--;
+      if (vol > 0)
+        vol--; // защита от переполнения uint8_t (0-1=255, иначе сон никогда не кончится)
       audioCmdVol(vol);
 
       itoa(vol, buffer, 10); // Convert int value to string
@@ -2254,8 +2259,13 @@ void audio_info(const char *info)
 
   if (strstr(info, subString1) != NULL) // check for "dropouts"
   {
-    Dropouts = 1;
-    DropoutCount++;
+    // Первые DropoutGraceMs после PLAY не считаем: буфер накачивается,
+    // "slow stream" в это время — норма, а не проблема канала.
+    if ((long)(millis() - lastPlayAt) >= (long)DropoutGraceMs)
+    {
+      Dropouts = 1;
+      DropoutCount++;
+    }
   }
 
   ScreenDirty = true; // рисуем в loop(), не здесь
