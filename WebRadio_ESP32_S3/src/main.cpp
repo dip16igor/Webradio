@@ -85,9 +85,13 @@ int NEWStation = 0;
 uint8_t OLDStation = 1;
 
 uint8_t Channel = 0;
+// Метаданные ниже — loop-сторона (отрисовка/композиция строк). Пишет их только
+// syncMetaFromAudio() из loop по флагам audio-задачи; сами audio-колбэки
+// кладут текст в meta* буферы под metaMutex. Прямая запись String из
+// audioTask запрещена (String не потокобезопасен).
 String NameStation = "-----";
 String StreamTitle = "-----";
-int Bitrate = 0;
+volatile int Bitrate = 0; // пишет audio_bitrate() из audioTask
 int8_t rssi = -100;
 uint8_t vol = 12;
 String format;
@@ -105,14 +109,18 @@ bool PowerOnFast = 0;
 bool StatusRF = 0;
 
 const char *subString = "failed";
-bool RequestFail = 0;
-int CounterFail = 0;
-bool ReconnectLater = 0;
+// Флаги ниже трогают обе задачи (audioTask на core 0 пишет, loop на core 1
+// читает/пишет), поэтому volatile. ESP32 делит DRAM когерентно, атомарности
+// чтения/записи bool/int достаточно.
+volatile bool RequestFail = 0;
+volatile int CounterFail = 0;
+volatile bool ReconnectLater = 0;
 const char *subString1 = "dropouts";
-bool Dropouts = 0;
+volatile bool Dropouts = 0;
 // Dropout counter: number of audio buffer underruns in the current 10 s window,
 // published to topic_dropouts only when the value changes (repeated 0 suppressed)
-unsigned int DropoutCount = 0;
+// (++ из audioTask, чтение/сброс из loop — volatile)
+volatile unsigned int DropoutCount = 0;
 unsigned long DropoutWindowStart = 0;
 const unsigned long DropoutWindowInterval = 10000; // 10 seconds
 int LastDropoutPublished = 0;
@@ -149,6 +157,158 @@ unsigned long ScreenOffAt = 0;           // 0 = ничего не заплани
 unsigned long LastRetryAt = 0;           // время последней попытки переподключения
 bool ScreenDirty = false;                // экран нужно перерисовать (из audio-callback)
 unsigned long LastScreenDraw = 0;        // время последней отрисовки из loop()
+
+// --- Audio task (core 0): сеть и декодер отдельно от UI -----------------------
+// loop() крутится на core 1 (дефолт Arduino). ВСЕ вызовы Audio
+// (connecttohost/setVolume/stopSong/loop) выполняются ТОЛЬКО в audioTask на
+// core 0 — поэтому блокирующий коннект (DNS+TCP+TLS+HTTP-заголовки, до ~2 с
+// на HTTPS) больше не останавливает кнопки, экран и MQTT. Связь между
+// задачами — через очереди (FreeRTOS Queue, потокобезопасны):
+//   audioCmdQ — команды loop -> audio (PLAY/STOP/VOL), FIFO на 24
+//   mqttOutQ  — сообщения audio -> loop для публикации в MQTT
+// (PubSubClient НЕ потокобезопасен: client.publish только из loop).
+enum AudioCmdType : uint8_t { AUDIO_CMD_PLAY, AUDIO_CMD_STOP, AUDIO_CMD_VOL };
+struct AudioCmd
+{
+  AudioCmdType type;
+  uint8_t vol;     // для AUDIO_CMD_VOL
+  char url[512];   // для AUDIO_CMD_PLAY (копия — исходная строка может умереть раньше)
+};
+enum MqttOutTopic : uint8_t { MQTT_OUT_LOG, MQTT_OUT_TITLE, MQTT_OUT_STATION };
+struct MqttOutMsg
+{
+  MqttOutTopic topic;
+  char text[240];
+};
+static QueueHandle_t audioCmdQ = NULL;
+static QueueHandle_t mqttOutQ = NULL;
+static SemaphoreHandle_t metaMutex = NULL;
+// audio-сторона метаданных: колбэки пишут сюда под metaMutex, loop забирает
+// в String'и через syncMetaFromAudio(). metaSeq растёт при каждом обновлении.
+static char metaName[128] = "";
+static char metaTitle[256] = "";
+static char metaFormat[16] = "";
+static char metaChannels[8] = "";
+static char metaBps[8] = "";
+static char metaRate[12] = "";
+static volatile uint32_t metaSeq = 0;
+static uint32_t lastMetaSeq = 0; // loop-сторона
+
+// Команды аудио-задаче. Безопасны из любого контекста (loop, MQTT-колбэк):
+// при живой очереди — через неё, иначе (очередь ещё не создана или переполнена)
+// прямым вызовом как раньше.
+inline void audioCmdPlay(const char *url)
+{
+  if (audioCmdQ)
+  {
+    AudioCmd c;
+    c.type = AUDIO_CMD_PLAY;
+    c.vol = 0;
+    strncpy(c.url, url, sizeof(c.url) - 1);
+    c.url[sizeof(c.url) - 1] = '\0';
+    if (xQueueSend(audioCmdQ, &c, 0) == pdTRUE)
+      return;
+  }
+  audio.connecttohost(url);
+}
+inline void audioCmdStop()
+{
+  if (audioCmdQ)
+  {
+    AudioCmd c;
+    c.type = AUDIO_CMD_STOP;
+    c.vol = 0;
+    c.url[0] = '\0';
+    if (xQueueSend(audioCmdQ, &c, 0) == pdTRUE)
+      return;
+  }
+  audio.stopSong();
+}
+inline void audioCmdVol(uint8_t v)
+{
+  if (audioCmdQ)
+  {
+    AudioCmd c;
+    c.type = AUDIO_CMD_VOL;
+    c.vol = v;
+    c.url[0] = '\0';
+    if (xQueueSend(audioCmdQ, &c, 0) == pdTRUE)
+      return;
+  }
+  audio.setVolume(v);
+}
+// Сообщение в MQTT из audio-контекста: только в очередь, публикует loop().
+inline void mqttEnqueue(MqttOutTopic t, const char *s)
+{
+  if (!mqttOutQ || !s)
+    return;
+  MqttOutMsg m;
+  m.topic = t;
+  strncpy(m.text, s, sizeof(m.text) - 1);
+  m.text[sizeof(m.text) - 1] = '\0';
+  xQueueSend(mqttOutQ, &m, 0); // переполнение — дроп (информационные сообщения)
+}
+// Положить готовую строку в audio-буфер метаданных. loop заберёт её через
+// syncMetaFromAudio(). Блокировка короткая (копия ~десятков байт).
+inline void metaSet(char *dst, size_t dstSz, const char *src)
+{
+  if (!src)
+    src = "";
+  if (metaMutex && xSemaphoreTake(metaMutex, portMAX_DELAY) == pdTRUE)
+  {
+    strncpy(dst, src, dstSz - 1);
+    dst[dstSz - 1] = '\0';
+    metaSeq++;
+    xSemaphoreGive(metaMutex);
+  }
+  else if (!metaMutex)
+  {
+    // мьютекса нет (только если колбэк случился до setup) — прямая запись
+    strncpy(dst, src, dstSz - 1);
+    dst[dstSz - 1] = '\0';
+  }
+  // мьютекс занят loop — дроп, следующий колбэк допишет
+}
+// Забрать метаданные из audio-буферов в loop-String'и. Вызывать из loop
+// (UpdateScreen/UpdateScreen1). Без блокировок: если мьютекс занят,
+// пропускаем — доберём в следующую отрисовку.
+void syncMetaFromAudio()
+{
+  if (!metaMutex || lastMetaSeq == metaSeq)
+    return;
+  if (xSemaphoreTake(metaMutex, 0) != pdTRUE)
+    return;
+  NameStation = metaName;
+  StreamTitle = metaTitle;
+  format = metaFormat;
+  channels = metaChannels;
+  BitsPerSample = metaBps;
+  SampleRate = metaRate;
+  lastMetaSeq = metaSeq;
+  xSemaphoreGive(metaMutex);
+}
+// Сама задача: команды -> вызовы Audio, затем накачка декодера.
+// vTaskDelay(1) отдаёт время WiFi/IDLE; I2S DMA (16x512 фреймов ~190 мс)
+// такой гранулярности хватает с запасом.
+void audioTask(void *param)
+{
+  (void)param;
+  AudioCmd cmd;
+  for (;;)
+  {
+    while (xQueueReceive(audioCmdQ, &cmd, 0) == pdTRUE)
+    {
+      if (cmd.type == AUDIO_CMD_PLAY)
+        audio.connecttohost(cmd.url);
+      else if (cmd.type == AUDIO_CMD_STOP)
+        audio.stopSong(); // здесь — прямой вызов: мы и есть audioTask
+      else if (cmd.type == AUDIO_CMD_VOL)
+        audio.setVolume(cmd.vol);
+    }
+    audio.loop();
+    vTaskDelay(1);
+  }
+}
 
 bool restart = 0;
 unsigned long uptime;
@@ -387,6 +547,8 @@ void callback(char *topic, byte *payload, unsigned int length)
   }
   // Serial.println(message);
 
+  syncMetaFromAudio(); // свежие названия/формат из audioTask перед обработкой команд
+
   if (strncmp(topic, topic_stations, strlen(topic_stations)) == 0) // station list from the web server
   {
     handleStationsPayload(payload, length);
@@ -483,7 +645,7 @@ void callback(char *topic, byte *payload, unsigned int length)
       vol = vol + 1;
       if (vol >= 21)
         vol = 21;
-      audio.setVolume(vol);  // 0...21
+      audioCmdVol(vol);  // 0...21 — в очередь audioTask, не блокирует loop
       itoa(vol, buffer, 10); // Convert int value to string
 
       // client.publish(topic_out, "Vol +");
@@ -495,7 +657,7 @@ void callback(char *topic, byte *payload, unsigned int length)
       vol = vol - 1;
       if (vol <= 0)
         vol = 0;
-      audio.setVolume(vol);  // 0...21
+      audioCmdVol(vol);  // 0...21 — в очередь audioTask, не блокирует loop
       itoa(vol, buffer, 10); // Convert int value to string
 
       // client.publish(topic_out, "Vol -");
@@ -527,7 +689,7 @@ void callback(char *topic, byte *payload, unsigned int length)
       u8g2.sendBuffer();
       // вместо delay(2000) + гашения экрана: гасим по таймеру в loop()
       ScreenOffAt = millis() + 2000;
-      audio.stopSong();
+      audioCmdStop(); // в очередь audioTask
     }
     if (message == "1") // POWER ON
     {
@@ -555,8 +717,8 @@ void callback(char *topic, byte *payload, unsigned int length)
       u8g2.setContrast(255);
 
       vol = 0;
-      audio.setVolume(vol);                         // 0...21
-      audio.connecttohost(getStationURL(NEWStation)); // switch station
+      audioCmdVol(vol);                         // 0...21 — в очередь audioTask
+      audioCmdPlay(getStationURL(NEWStation)); // switch station — не блокирует loop
       resetDropoutStats();
       // вместо delay(2000): старт нарастания громкости планируем на потом,
       // loop() при этом продолжает качать буфер и обслуживать MQTT
@@ -580,14 +742,14 @@ void callback(char *topic, byte *payload, unsigned int length)
       digitalWrite(RELAY2, HIGH);
 #endif
       vol = 0;
-      audio.setVolume(vol); // 0...21
+      audioCmdVol(vol); // 0...21 — в очередь audioTask
       // find the bird-sounds station by URL so the channel index stays valid after list changes
       NEWStation = findStation("https://live.radiospinner.com/bird-sounds-64");
       if (NEWStation < 0)
         NEWStation = 0;
       Channel = NEWStation;
       OLDStation = NEWStation;
-      audio.connecttohost(getStationURL(NEWStation)); // switch to BIRDS station
+      audioCmdPlay(getStationURL(NEWStation)); // switch to BIRDS station — не блокирует loop
       resetDropoutStats();
       PowerOnFast = 0;
       PowerOnRampInterval = 100; // time step for volume increase in ms
@@ -616,11 +778,11 @@ void callback(char *topic, byte *payload, unsigned int length)
       digitalWrite(LED_BLUE, HIGH); // turn on LED
 
       vol = 0;
-      audio.setVolume(vol); // 0...21
+      audioCmdVol(vol); // 0...21 — в очередь audioTask
       NEWStation = number - 1;
       Channel = NEWStation;
       OLDStation = NEWStation;
-      audio.connecttohost(getStationURL(NEWStation)); // switch to station
+      audioCmdPlay(getStationURL(NEWStation)); // switch to station — не блокирует loop
       resetDropoutStats();
       PowerOnFast = 0;
       PowerOnRampInterval = 100; // time step for volume increase in ms
@@ -638,7 +800,7 @@ void callback(char *topic, byte *payload, unsigned int length)
         Channel = NEWStation;
         OLDStation = NEWStation;
       }
-      audio.connecttohost(host); // switch station
+      audioCmdPlay(host); // switch station — не блокирует loop (URL копируется в команду)
       resetDropoutStats();
     }
 
@@ -787,6 +949,7 @@ uint8_t reconnect(void)
 
 void UpdateScreen(void)
 {
+  syncMetaFromAudio(); // подтянуть названия/формат из audioTask (если обновились)
   rssi = WiFi.RSSI();
 
 #ifdef DEBUG
@@ -1030,8 +1193,8 @@ void button_Power(void)
     u8g2.setContrast(255);
 
     vol = 0;
-    audio.setVolume(vol);                         // 0...21
-    audio.connecttohost(getStationURL(NEWStation)); // switch station
+    audioCmdVol(vol);                         // 0...21 — в очередь audioTask
+    audioCmdPlay(getStationURL(NEWStation)); // switch station — не блокирует loop
     resetDropoutStats();
     PowerOnFast = 0;
     PowerOnRampInterval = 100; // time step for volume increase in ms
@@ -1065,7 +1228,7 @@ void button_Power(void)
     u8g2.sendBuffer();
     // вместо delay(2000) + гашения экрана: гасим по таймеру в loop()
     ScreenOffAt = millis() + 2000;
-    audio.stopSong();
+    audioCmdStop(); // в очередь audioTask
     // audio.stopSong();
   }
 }
@@ -1089,7 +1252,7 @@ void button_Sleep(void)
       client.publish(topic_state, "Power ON");
       StatusSleep = 0;
       vol = 12;
-      audio.setVolume(vol); // 0...21
+      audioCmdVol(vol); // 0...21 — в очередь audioTask
 
       itoa(vol, buffer, 10); // Convert int value to string
       client.publish(topic_volume, buffer);
@@ -1210,7 +1373,25 @@ void setup() // ************************************************* SETUP ********
   // -------------------------------------------------------------------------
 
   audio.setPinout(I2S_BCLK, I2S_LRC, I2S_DOUT);
-  audio.setVolume(vol); // 0...21
+
+  // --- Запуск audioTask (core 0) ------------------------------------------------
+  // Очереди и мьютекс живут с этого момента; все audioCmd*/mqttEnqueue после
+  // этой точки идут через них. Если что-то не создалось — helpers тихо
+  // откатываются на прямые вызовы (старое поведение).
+  audioCmdQ = xQueueCreate(24, sizeof(AudioCmd));
+  mqttOutQ = xQueueCreate(16, sizeof(MqttOutMsg));
+  metaMutex = xSemaphoreCreateMutex();
+  if (audioCmdQ && mqttOutQ && metaMutex)
+  {
+    if (xTaskCreatePinnedToCore(audioTask, "audio", 12288, NULL, 3, NULL, 0) != pdPASS)
+      Serial.println("FATAL: audio task not created");
+    else
+      Serial.println("audio task started on core 0");
+  }
+  else
+    Serial.println("FATAL: audio IPC not created");
+  // ------------------------------------------------------------------------------
+  audioCmdVol(vol); // 0...21 (через очередь — задача уже запущена)
 
   u8g2.begin();
   u8g2.setFont(u8g2_font_9x18B_tr);
@@ -1515,10 +1696,27 @@ void loop() //*************************************************** LOOP *********
     previousMillis2 = currentMillis;
     Serial.println("Reconnect to Host");
     // call the function to be executed every minute
-    audio.connecttohost(getStationURL(NEWStation)); // switch station
+    audioCmdPlay(getStationURL(NEWStation)); // switch station — не блокирует loop
   }
 
   client.loop(); // MQTT client
+
+  // Исходящие MQTT из audioTask (метаданные/ошибки декодера): публикуем здесь,
+  // PubSubClient живёт только в loop-контексте.
+  {
+    MqttOutMsg om;
+    while (mqttOutQ && xQueueReceive(mqttOutQ, &om, 0) == pdTRUE)
+    {
+      if (!client.connected())
+        break; // офлайн — дроп (статусы переспросятся командой "?", дропы накопятся)
+      if (om.topic == MQTT_OUT_LOG)
+        client.publish(topic_out, om.text);
+      else if (om.topic == MQTT_OUT_TITLE)
+        client.publish(topic_title, om.text);
+      else if (om.topic == MQTT_OUT_STATION)
+        client.publish(topic_station, om.text);
+    }
+  }
 
   Alarm.service();
 
@@ -1569,7 +1767,7 @@ void loop() //*************************************************** LOOP *********
     if (vol >= 21)
       vol = 21;
     UpdateScreen();
-    audio.setVolume(vol);
+    audioCmdVol(vol);
 
     itoa(vol, buffer, 10); // Преобразование значения int в строку
     client.publish(topic_volume, buffer);
@@ -1580,7 +1778,7 @@ void loop() //*************************************************** LOOP *********
     if (vol <= 0)
       vol = 0;
     UpdateScreen();
-    audio.setVolume(vol);
+    audioCmdVol(vol);
 
     itoa(vol, buffer, 10); // Преобразование значения int в строку
     client.publish(topic_volume, buffer);
@@ -1685,7 +1883,7 @@ void loop() //*************************************************** LOOP *********
       if (vol < targetVol)
       {
         vol += step;          // increase vol by step if target not reached
-        audio.setVolume(vol); // set new volume level
+        audioCmdVol(vol); // set new volume level
 
         itoa(vol, buffer, 10); // Convert int value to string
         client.publish(topic_volume, buffer);
@@ -1735,7 +1933,7 @@ void loop() //*************************************************** LOOP *********
 
       UpdateScreen();
 
-      audio.connecttohost(getStationURL(NEWStation)); // switch station
+      audioCmdPlay(getStationURL(NEWStation)); // switch station — коннект в audioTask, loop свободен
 
       // Serial.println(NEWStation);
 
@@ -1755,7 +1953,7 @@ void loop() //*************************************************** LOOP *********
         CounterFail++;
         Serial.print("Reconnect #");
         Serial.println(CounterFail);
-        audio.connecttohost(getStationURL(NEWStation)); // switch station
+        audioCmdPlay(getStationURL(NEWStation)); // switch station — коннект в audioTask
         previousMillis2 = millis();
       }
     }
@@ -1764,7 +1962,8 @@ void loop() //*************************************************** LOOP *********
       ReconnectLater = 1; // reconnect in a minute
     }
 
-    audio.loop();
+    // audio.loop() больше не здесь: декодер и сеть живут в audioTask (core 0),
+    // этот блок loop() только ставит команды и мгновенно возвращается.
   }
   else // power is off
   {
@@ -1783,7 +1982,7 @@ void loop() //*************************************************** LOOP *********
       previousMillis = currentMillis; // update the previousMillis value
 
       vol--;
-      audio.setVolume(vol);
+      audioCmdVol(vol);
 
       itoa(vol, buffer, 10); // Convert int value to string
       client.publish(topic_volume, buffer);
@@ -1838,7 +2037,7 @@ void audio_info(const char *info)
     Serial.println(info);
     char bufMsg[96];
     snprintf(bufMsg, sizeof(bufMsg), "Buffer: %s", info);
-    client.publish(topic_out, bufMsg);
+    mqttEnqueue(MQTT_OUT_LOG, bufMsg); // публикует loop (PubSubClient не потокобезопасен)
   }
 
   if (strncmp(info, "BitRate", 7) == 0)
@@ -1857,7 +2056,7 @@ void audio_info(const char *info)
     Serial.println("403/500");
 #endif
     RequestFail = 1;
-    client.publish(topic_out, "Request failed! (403/500)");
+    mqttEnqueue(MQTT_OUT_LOG, "Request failed! (403/500)"); // публикует loop
   }
 
   if (strstr(info, subString) != NULL) // check for "failed"
@@ -1866,7 +2065,7 @@ void audio_info(const char *info)
     Serial.println("Request failed!");
 #endif
     RequestFail = 1;
-    client.publish(topic_out, "Request failed!");
+    mqttEnqueue(MQTT_OUT_LOG, "Request failed!"); // публикует loop
   }
   else if (strstr(info, "established") != NULL)
   {
@@ -1880,6 +2079,7 @@ void audio_info(const char *info)
     String input = String(info);
     String searchString = "format is ";
     int startIndex = input.indexOf(searchString);
+    String fmtParsed = "";
 
     if (startIndex != -1)
     {
@@ -1892,27 +2092,26 @@ void audio_info(const char *info)
         endIndex = input.length();
       }
 
-      format = input.substring(startIndex, endIndex); // Return the found format
+      fmtParsed = input.substring(startIndex, endIndex); // Return the found format
     }
-    else
-      format = ""; // Возвращаем пустую строку, если формат не найден
 
+    metaSet(metaFormat, sizeof(metaFormat), fmtParsed.c_str()); // заберёт loop
     Serial.println("format is:");
-    Serial.println(format);
+    Serial.println(fmtParsed);
   }
 
   if (strstr(info, "AACDecoder") != NULL)
   {
-    format = "AAC";
+    metaSet(metaFormat, sizeof(metaFormat), "AAC"); // заберёт loop
     Serial.println("format is:");
-    Serial.println(format);
+    Serial.println("AAC");
   }
 
   if (strstr(info, "MP3Decoder") != NULL)
   {
-    format = "MP3";
+    metaSet(metaFormat, sizeof(metaFormat), "MP3"); // заберёт loop
     Serial.println("format is:");
-    Serial.println(format);
+    Serial.println("MP3");
   }
 
   if (strstr(info, "Channels:") != NULL)
@@ -1920,6 +2119,7 @@ void audio_info(const char *info)
     String input = String(info);
     String searchString = "Channels: ";
     int startIndex = input.indexOf(searchString);
+    String chParsed = "";
 
     if (startIndex != -1)
     {
@@ -1932,10 +2132,9 @@ void audio_info(const char *info)
         endIndex = input.length();
       }
 
-      channels = input.substring(startIndex, endIndex); // Return the found format
+      chParsed = input.substring(startIndex, endIndex); // Return the found format
     }
-    else
-      channels = ""; // Возвращаем пустую строку, если формат не найден
+    metaSet(metaChannels, sizeof(metaChannels), chParsed.c_str()); // заберёт loop
   }
 
   if (strstr(info, "SampleRate:") != NULL)
@@ -1943,6 +2142,7 @@ void audio_info(const char *info)
     String input = String(info);
     String searchString = "SampleRate: ";
     int startIndex = input.indexOf(searchString);
+    String rateParsed = "";
 
     if (startIndex != -1)
     {
@@ -1955,10 +2155,9 @@ void audio_info(const char *info)
         endIndex = input.length();
       }
 
-      SampleRate = input.substring(startIndex, endIndex); // Return the found format
+      rateParsed = input.substring(startIndex, endIndex); // Return the found format
     }
-    else
-      SampleRate = ""; // Возвращаем пустую строку, если формат не найден
+    metaSet(metaRate, sizeof(metaRate), rateParsed.c_str()); // заберёт loop
   }
 
   if (strstr(info, "BitsPerSample:") != NULL)
@@ -1966,6 +2165,7 @@ void audio_info(const char *info)
     String input = String(info);
     String searchString = "BitsPerSample: ";
     int startIndex = input.indexOf(searchString);
+    String bpsParsed = "";
 
     if (startIndex != -1)
     {
@@ -1978,10 +2178,9 @@ void audio_info(const char *info)
         endIndex = input.length();
       }
 
-      BitsPerSample = input.substring(startIndex, endIndex); // Return the found format
+      bpsParsed = input.substring(startIndex, endIndex); // Return the found format
     }
-    else
-      BitsPerSample = ""; // Возвращаем пустую строку, если формат не найден
+    metaSet(metaBps, sizeof(metaBps), bpsParsed.c_str()); // заберёт loop
 
     // String info;
     // info = format + " " + channels + "x " + BitsPerSample + " bps " + SampleRate + " Hz " + String(Bitrate) + " bod";
@@ -2011,19 +2210,20 @@ void audio_info(const char *info)
     else
       Bitrate1 = ""; // Возвращаем пустую строку, если формат не найден
 
-    String info;
-
+    // Композиция — из audio-буферов напрямую: loop-String'и (channels и др.)
+    // здесь читать нельзя (их пишет syncMetaFromAudio из другой задачи).
+    // Буферы пишет только эта задача, loop их лишь читает — гонки нет.
+    String infoLine;
     String mode_audio;
-    if (channels == "1")
+    if (strcmp(metaChannels, "1") == 0)
       mode_audio = "MONO";
     else
       mode_audio = "STEREO";
 
-    int SampleRateInt = SampleRate.toInt() / 1000;
+    int SampleRateInt = atoi(metaRate) / 1000;
 
-    info = mode_audio + " " + BitsPerSample + " bit " + SampleRateInt + " kHz " + format + " " + String(Bitrate / 1000) + " kb/s";
-    const char *myCString2 = info.c_str();
-    client.publish(topic_out, myCString2);
+    infoLine = mode_audio + " " + metaBps + " bit " + SampleRateInt + " kHz " + metaFormat + " " + String(Bitrate / 1000) + " kb/s";
+    mqttEnqueue(MQTT_OUT_LOG, infoLine.c_str()); // публикует loop
   }
 
   if (strstr(info, subString1) != NULL) // check for "dropouts"
@@ -2057,14 +2257,14 @@ void audio_showstation(const char *info)
 
   if (strncmp(info, "This is my", 10) == 0)
     info = "Silver Rain";
-  NameStation = info;
+  metaSet(metaName, sizeof(metaName), info); // заберёт loop через syncMetaFromAudio
   ScreenDirty = true; // рисуем в loop(), не здесь
   if (strlen(info))
   {
-    // client.publish(topic_out, info);
     //  Format the string and save the result to the buffer
-    snprintf(buffer1, sizeof(buffer1), "%d %s", Channel + 1, info);
-    client.publish(topic_station, buffer1);
+    char stBuf[300]; // локальный: общий buffer1 трогает loop
+    snprintf(stBuf, sizeof(stBuf), "%d %s", Channel + 1, info);
+    mqttEnqueue(MQTT_OUT_STATION, stBuf); // публикует loop
   }
 #ifdef DEBUG
   Serial.print("station     ");
@@ -2080,12 +2280,12 @@ void audio_showstreaminfo(const char *info)
 }
 void audio_showstreamtitle(const char *info)
 {
-  StreamTitle = info;
+  metaSet(metaTitle, sizeof(metaTitle), info); // заберёт loop через syncMetaFromAudio
   ScreenDirty = true; // рисуем в loop(), не здесь
   if (strlen(info))
   {
     // client.publish(topic_out, info);
-    client.publish(topic_title, info);
+    mqttEnqueue(MQTT_OUT_TITLE, info); // публикует loop
   }
 
 #ifdef DEBUG
@@ -2096,7 +2296,7 @@ void audio_showstreamtitle(const char *info)
 void audio_bitrate(const char *info)
 {
   Bitrate = atoi(info);
-  UpdateScreen();
+  ScreenDirty = true; // было UpdateScreen() — нельзя из audioTask, рисует loop
 
 #ifdef DEBUG
   Serial.print("bitrate     ");
@@ -2177,8 +2377,8 @@ void PowerON_1()
     u8g2.sendBuffer();
 
     vol = 0;
-    audio.setVolume(vol);                         // 0...21
-    audio.connecttohost(getStationURL(NEWStation)); // switch station
+    audioCmdVol(vol);                         // 0...21 — в очередь audioTask
+    audioCmdPlay(getStationURL(NEWStation)); // switch station — не блокирует loop
     resetDropoutStats();
     PowerOnFast = 0;
     PowerOnRampInterval = 1000 * 10; // медленное нарастание для будильника
