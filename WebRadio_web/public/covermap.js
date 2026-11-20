@@ -27,6 +27,10 @@ window.CoverMap = (() => {
     const view = { lat: 25, lon: 0, zoom: 1 };
     const target = { lat: 25, lon: 0, zoom: 1 };
     let pendingFly = null;
+    let zoomTween = null; // {from, to, t, dur}: smooth zoom-in after recenter
+    function startZoomTween(to, dur) {
+        zoomTween = { from: view.zoom, to, t: 0, dur };
+    }
     let marker = null; // {lat, lon, city, country, ip}
     let unknown = false;
 
@@ -48,6 +52,7 @@ window.CoverMap = (() => {
 
     function userHold() {
         pendingFly = null; // user takes over: cancel auto fly-to
+        zoomTween = null;
     }
 
     function eventPx(e) {
@@ -308,10 +313,19 @@ window.CoverMap = (() => {
         lastT = now;
         tG += dt;
         const k = Math.min(1, dt * 2.4);
-        view.zoom += (target.zoom - view.zoom) * k;
+        if (zoomTween) {
+            zoomTween.t += dt;
+            let p = Math.min(1, zoomTween.t / zoomTween.dur);
+            p = p * p * p * (p * (p * 6 - 15) + 10); // smootherstep: gentle in/out
+            view.zoom = target.zoom = zoomTween.from + (zoomTween.to - zoomTween.from) * p;
+            if (p >= 1) zoomTween = null;
+        } else {
+            view.zoom += (target.zoom - view.zoom) * k;
+        }
         view.lat += (target.lat - view.lat) * k;
         view.lon = lerpAngle(view.lon, target.lon, k);
-        if (pendingFly && view.zoom < 1.35) {
+        if (pendingFly && !zoomTween && view.zoom < 1.15) {
+            // zoomed out: recenter invisibly, then smooth zoom-in
             view.lat = pendingFly.lat;
             view.lon = pendingFly.lon;
             target.lat = pendingFly.lat;
@@ -319,7 +333,7 @@ window.CoverMap = (() => {
             marker = pendingFly;
             pendingFly = null;
             unknown = false;
-            target.zoom = 7;
+            startZoomTween(7, 2.8);
         }
         ctx.fillStyle = mapStyle === 'borders' ? '#07070f' : '#050505';
         ctx.fillRect(0, 0, W, H);
@@ -378,6 +392,7 @@ window.CoverMap = (() => {
             marker = null;
             unknown = false;
             pendingFly = null;
+            zoomTween = null;
             target.lat = 25;
             target.lon = 0;
             target.zoom = 1;
@@ -396,6 +411,7 @@ window.CoverMap = (() => {
         showUnknown() {
             marker = null;
             pendingFly = null;
+            zoomTween = null;
             unknown = true;
             target.lat = 25;
             target.lon = 0;
