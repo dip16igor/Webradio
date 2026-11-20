@@ -42,6 +42,76 @@ window.CoverMap = (() => {
         return a + d * k;
     }
 
+    function userHold() {
+        pendingFly = null; // user takes over: cancel auto fly-to
+    }
+
+    function eventPx(e) {
+        const r = canvas.getBoundingClientRect();
+        const sx = canvas.width / Math.max(1, r.width);
+        const sy = canvas.height / Math.max(1, r.height);
+        return [(e.clientX - r.left) * sx, (e.clientY - r.top) * sy];
+    }
+
+    function unproject(px, py) {
+        const sx = (W / 360) * view.zoom;
+        const sy = (H / 180) * view.zoom;
+        let lon = view.lon + (px - W / 2) / sx;
+        while (lon > 180) lon -= 360;
+        while (lon < -180) lon += 360;
+        const lat = Math.max(-85, Math.min(85, view.lat - (py - H / 2) / sy));
+        return { lat, lon };
+    }
+
+    function bindPointer() {
+        canvas.addEventListener('wheel', (e) => {
+            if (e.ctrlKey) return; // let the browser page-zoom
+            e.preventDefault();
+            userHold();
+            const f = Math.exp(-e.deltaY * (e.deltaMode === 1 ? 0.05 : 0.0015));
+            const nz = Math.min(12, Math.max(1, target.zoom * f));
+            const [px, py] = eventPx(e);
+            const g = unproject(px, py);
+            target.zoom = nz;
+            const sx = (W / 360) * nz;
+            const sy = (H / 180) * nz;
+            target.lon = g.lon - (px - W / 2) / sx;
+            while (target.lon > 180) target.lon -= 360;
+            while (target.lon < -180) target.lon += 360;
+            target.lat = Math.max(-85, Math.min(85, g.lat + (py - H / 2) / sy));
+        }, { passive: false });
+
+        let dragging = false;
+        let lx = 0, ly = 0;
+        canvas.addEventListener('pointerdown', (e) => {
+            dragging = true;
+            const [px, py] = eventPx(e);
+            lx = px;
+            ly = py;
+            try { canvas.setPointerCapture(e.pointerId); } catch (err) { /* noop */ }
+        });
+        canvas.addEventListener('pointermove', (e) => {
+            if (!dragging) return;
+            userHold();
+            const [px, py] = eventPx(e);
+            const sx = (W / 360) * view.zoom;
+            const sy = (H / 180) * view.zoom;
+            let dlon = -(px - lx) / sx;
+            let dlat = (py - ly) / sy;
+            lx = px;
+            ly = py;
+            view.lon += dlon;
+            while (view.lon > 180) view.lon -= 360;
+            while (view.lon < -180) view.lon += 360;
+            view.lat = Math.max(-85, Math.min(85, view.lat + dlat));
+            target.lon = view.lon;
+            target.lat = view.lat;
+        });
+        const endDrag = () => { dragging = false; };
+        canvas.addEventListener('pointerup', endDrag);
+        canvas.addEventListener('pointercancel', endDrag);
+    }
+
     function drawGraticule() {
         ctx.strokeStyle = 'rgba(125,219,155,0.16)';
         ctx.lineWidth = 1;
@@ -201,9 +271,11 @@ window.CoverMap = (() => {
     }
 
     return {
+        dbg() { return { view: { ...view }, target: { ...target }, pending: !!pendingFly }; },
         init(canvasEl) {
             canvas = canvasEl;
             ctx = canvas.getContext('2d');
+            bindPointer();
             this.resize();
         },
         resize() {
