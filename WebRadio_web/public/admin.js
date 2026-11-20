@@ -26,6 +26,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const coverTrackEl = document.getElementById('cover-track');
     const mapCanvasEl = document.getElementById('cover-map');
     const globeBtn = document.getElementById('cover-globe-btn');
+    const mapStyleBtn = document.getElementById('map-style-btn');
 
     // Cover appearance FX: genre picks the world (CRT / glitch / Moon shot).
     const COVER_FX = ['fx-tv', 'fx-glitch', 'fx-moon'];
@@ -112,6 +113,15 @@ document.addEventListener('DOMContentLoaded', () => {
     let coverView = 'cover';
     let mapPinned = false;
     let hasCoverArt = false;
+    let mapStyle = 'dots';
+    try {
+        const s = localStorage.getItem('webradio_mapstyle');
+        if (s === 'dots' || s === 'borders') mapStyle = s;
+    } catch (e) { /* noop */ }
+    const applyMapStyle = () => {
+        CoverMap.setStyle(mapStyle);
+        mapStyleBtn.title = mapStyle === 'borders' ? 'Карта: границы' : 'Карта: точки';
+    };
     const updateMapNoise = () => {
         coverNoiseEl.classList.toggle('hud', coverView === 'map' && playingIndex !== -1);
     };
@@ -121,6 +131,7 @@ document.addEventListener('DOMContentLoaded', () => {
         panelCoverEl.hidden = isMap;
         mapCanvasEl.hidden = !isMap;
         globeBtn.classList.toggle('active', isMap);
+        mapStyleBtn.hidden = !isMap;
         if (isMap) {
             coverNoiseEl.classList.remove('on', 'ramp-fast', 'snow');
             CoverMap.resize();
@@ -162,7 +173,14 @@ document.addEventListener('DOMContentLoaded', () => {
             setCoverView('map');
         }
     });
+    mapStyleBtn.addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        mapStyle = (CoverMap.getStyle() === 'borders') ? 'dots' : 'borders';
+        try { localStorage.setItem('webradio_mapstyle', mapStyle); } catch (e) { /* noop */ }
+        applyMapStyle();
+    });
     CoverMap.init(mapCanvasEl);
+    applyMapStyle();
     const panelStopBtn = document.getElementById('preview-stop');
     const panelPrevBtn = document.getElementById('preview-prev');
     const panelNextBtn = document.getElementById('preview-next');

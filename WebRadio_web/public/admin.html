@@ -205,6 +205,7 @@
         }
         .cover-icon-btn:hover { border-color: #7ddb9b; color: #7ddb9b; }
         .cover-icon-btn.active { color: #7ddb9b; border-color: #7ddb9b; }
+        #map-style-btn { top: 34px; }
         .cover-map {
             position: absolute;
             inset: 0;
@@ -420,6 +421,12 @@
                         <line x1="3.6" y1="15" x2="20.4" y2="15"></line>
                     </svg>
                 </button>
+                <button id="map-style-btn" class="cover-icon-btn" title="Карта: точки" hidden>
+                    <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.5">
+                        <path d="M12 3l9 5-9 5-9-5 9-5z"></path>
+                        <path d="M3 13l9 5 9-5"></path>
+                    </svg>
+                </button>
             </div>
             <div class="preview-right">
                 <div class="card card-track">
@@ -490,8 +497,8 @@
 
     </div>
 
-    <script src="covermap.js?v=2"></script>
-    <script src="admin.js?v=23"></script>
+    <script src="covermap.js?v=3"></script>
+    <script src="admin.js?v=24"></script>
 <script>
 if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
