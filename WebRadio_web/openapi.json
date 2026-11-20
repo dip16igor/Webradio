@@ -235,6 +235,15 @@
         "responses": { "200": { "description": "Command published" } }
       }
     },
+    "/api/radio/geo": {
+      "get": {
+        "tags": ["radio"],
+        "summary": "Stream server geolocation",
+        "description": "Resolve the stream host IP and geolocate it (ip-api.com, cached per host for 24 h). Powers the cover globe map in admin.html. Unknown location comes back as {unknown:true, reason}.",
+        "parameters": [{ "name": "url", "in": "query", "required": true, "schema": { "type": "string" }, "description": "Public http(s) stream URL (same SSRF gate as /probe)" }],
+        "responses": { "200": { "description": "{success, data:{ip, country, countryCode, city, lat, lon} | {unknown:true}}" } }
+      }
+    },
     "/api/radio/openapi.json": {
       "get": {
         "tags": ["discovery"],

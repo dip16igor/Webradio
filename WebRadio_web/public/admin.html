@@ -4,8 +4,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#1a1a1a">
     <title>ESP32 WebRadio - Station Manager</title>
+    <link rel="manifest" href="site.webmanifest">
     <link rel="stylesheet" href="style.css">
+    <link rel="icon" href="radio.svg" type="image/svg+xml">
     <style>
         .admin-toolbar {
             display: flex;
@@ -121,16 +124,338 @@
             font-size: 13px;
             margin-bottom: 10px;
         }
+
+        .preview-cards {
+            display: grid;
+            grid-template-columns: auto minmax(0, 1fr);
+            gap: 10px;
+            align-items: start;
+            margin-bottom: 10px;
+        }
+
+        .card {
+            background: #1a1a1a;
+            border: 1px solid #555;
+            border-radius: 6px;
+            padding: 8px 10px;
+        }
+
+        .card-cover {
+            position: relative;
+            padding: 0;
+            overflow: hidden;
+            aspect-ratio: 1 / 1;
+            width: 180px;
+        }
+
+        .cover-img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+            background: #333;
+            transition: opacity 2s ease;
+        }
+
+        .cover-noise,
+        .cover-track {
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 2.5s ease;
+        }
+
+        .cover-noise {
+            background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="140" height="140"><filter id="n"><feTurbulence type="fractalNoise" baseFrequency="0.85" numOctaves="2" stitchTiles="stitch"/></filter><rect width="140" height="140" filter="url(%23n)" opacity="0.55"/></svg>');
+        }
+
+        .cover-noise.on { opacity: 0.5; animation: noiseShift 0.35s steps(3) infinite; }
+        /* Cover wait states: growing interference -> snow -> sparse night noise. */
+        .cover-noise.ramp-fast { animation: noiseRamp 2s linear forwards, noiseShift 0.35s steps(3) infinite; }
+        @keyframes noiseRamp {
+            0% { opacity: 0; }
+            100% { opacity: 1; }
+        }
+        .cover-noise.snow { opacity: 1; animation: noiseShift 0.35s steps(3) infinite; }
+        .cover-noise.dark { opacity: 0.12; animation: noiseDrift 7s linear infinite; }
+        @keyframes noiseDrift {
+            0% { background-position: 0 0; }
+            100% { background-position: 120px 60px; }
+        }
+        .card-cover.nosignal { background: #000; }
+        .card-cover.nosignal .cover-img { opacity: 0; }
+
+        .cover-icon-btn {
+            position: absolute;
+            top: 6px;
+            right: 6px;
+            z-index: 6;
+            width: 24px;
+            height: 24px;
+            padding: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: transparent;
+            color: #eee;
+            border: 1px solid rgba(238, 238, 238, 0.35);
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .cover-icon-btn:hover { border-color: #7ddb9b; color: #7ddb9b; }
+        .cover-icon-btn.active { color: #7ddb9b; border-color: #7ddb9b; }
+        .cover-map {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            display: block;
+            background: #050505;
+        }
+        .cover-map[hidden] { display: none; }
+        .cover-img[hidden] { display: none; }
+        .cover-noise.hud {
+            opacity: 0.07;
+            filter: sepia(1) saturate(2.5) hue-rotate(-20deg);
+            animation: noiseShift 0.5s steps(2) infinite;
+        }
+        @keyframes noiseShift {
+            0% { background-position: 0 0; }
+            33% { background-position: -46px 24px; }
+            66% { background-position: 32px -38px; }
+            100% { background-position: 0 0; }
+        }
+
+        .cover-track {
+            height: 14%;
+            top: auto;
+            bottom: 20%;
+            background: linear-gradient(to bottom, transparent, rgba(255, 255, 255, 0.35) 45%, rgba(255, 255, 255, 0.55) 50%, rgba(255, 255, 255, 0.35) 55%, transparent);
+        }
+
+        .cover-track.on { opacity: 0.8; animation: trackMove 0.9s linear infinite; }
+        @keyframes trackMove {
+            0% { transform: translateY(-260%); }
+            100% { transform: translateY(260%); }
+        }
+
+        /* Analog TV warm-up: beam line flash, then warming phosphor. */
+        .cover-img.fx-tv { animation: crtOn 2.6s ease-out; }
+        @keyframes crtOn {
+            0% { filter: brightness(0) saturate(0); transform: scaleY(0.03) scaleX(0.7); }
+            12% { filter: brightness(3.2) saturate(0.15); transform: scaleY(0.06) scaleX(1); }
+            32% { filter: brightness(1.7) saturate(0.35) sepia(0.65); transform: scale(1.03); }
+            62% { filter: brightness(1.1) saturate(0.9) sepia(0.25); transform: scale(1); }
+            100% { filter: none; transform: none; }
+        }
+
+        /* Digital glitch: slices, jumps, channel swim. */
+        .cover-img.fx-glitch { animation: glitchIn 2.1s steps(2, jump-none); }
+        @keyframes glitchIn {
+            0% { clip-path: inset(8% 0 62% 0); transform: translate(-9px, 4px); filter: hue-rotate(95deg) saturate(3.2); }
+            12% { clip-path: inset(58% 0 6% 0); transform: translate(8px, -4px); filter: hue-rotate(-70deg) saturate(0.25); }
+            24% { clip-path: inset(30% 0 38% 0); transform: translate(-5px, 2px) skewX(3deg); filter: hue-rotate(40deg) saturate(2.4) contrast(1.6); }
+            36% { clip-path: inset(75% 0 2% 0); transform: translate(6px, 1px); filter: hue-rotate(-120deg) saturate(0.4); }
+            48% { clip-path: inset(4% 0 80% 0); transform: translate(-7px, -2px) skewX(-4deg); filter: hue-rotate(150deg) saturate(2.8); }
+            60% { clip-path: inset(45% 0 30% 0); transform: translate(4px, 3px); filter: hue-rotate(-30deg) saturate(1.6) contrast(1.3); }
+            72% { clip-path: inset(20% 0 55% 0); transform: translate(-3px, 0); filter: hue-rotate(60deg) saturate(2); }
+            84% { clip-path: inset(0 0 0 0); transform: translate(1px, 0); filter: saturate(1.2); }
+            100% { clip-path: none; transform: none; filter: none; }
+        }
+
+        /* First far-side Moon shot: noisy grey frame resolving to clean. */
+        .cover-img.fx-moon { animation: moonIn 3s ease; }
+        @keyframes moonIn {
+            0% { filter: grayscale(1) contrast(1.7) brightness(0.45); }
+            45% { filter: grayscale(0.75) contrast(1.35) brightness(0.75); }
+            75% { filter: grayscale(0.3) contrast(1.1) brightness(0.95); }
+            100% { filter: none; }
+        }
+
+        /* VHS pause while the stream buffers. */
+        .cover-img.fx-dropout { animation: vhsPause 0.32s steps(2, jump-none) infinite; }
+        @keyframes vhsPause {
+            0% { transform: translateY(0) skewX(0); filter: saturate(0.45) contrast(1.25) brightness(1.05); }
+            50% { transform: translateY(-2px) skewX(1.5deg); filter: saturate(0.35) contrast(1.35) brightness(0.95) hue-rotate(-8deg); }
+            100% { transform: translateY(1px) skewX(-1deg); filter: saturate(0.5) contrast(1.2) brightness(1); }
+        }
+
+        .preview-right {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            min-width: 0;
+        }
+
+        .track-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 4px;
+        }
+
+        .track-btns { display: flex; gap: 6px; }
+
+        .card-track { font-size: 13px; }
+
+        .preview-spectrum {
+            width: 100%;
+            height: 72px;
+            display: block;
+            background: #111;
+            border: 1px solid #333;
+            border-radius: 4px;
+        }
+
+        .preview-state {
+            color: #7ddb9b;
+            font-weight: 600;
+        }
+
+        .preview-state.loading { color: #f2c94c; }
+        .preview-state.error { color: #f2a1a1; }
+
+        .preview-station,
+        .preview-track,
+        .preview-codec {
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .preview-station { color: #eee; font-weight: 600; }
+
+        .preview-track { color: #eee; }
+        .preview-codec { color: #999; font-size: 12px; }
+        .preview-codec a { color: #7ddb9b; }
+
+        .preview-vol-row { display: flex; align-items: center; gap: 6px; margin-top: 4px; }
+        .preview-vol-icon { font-size: 13px; }
+        #preview-vol { flex: 1; accent-color: #7ddb9b; height: 18px; }
+
+        .page-header h2 {
+            margin: 0;
+            padding-bottom: 0;
+            border-bottom: none;
+        }
+
+        #meta {
+            color: #ccc;
+            margin: 0 0 10px;
+        }
+
+        @media (max-width: 700px) {
+            .preview-cards { grid-template-columns: 120px minmax(0, 1fr); }
+            .card-cover { width: 120px; }
+        }
+
+        .spec-wrap { position: relative; }
+        #spec-menu-btn {
+            position: absolute;
+            top: 6px;
+            right: 6px;
+            width: 22px;
+            height: 22px;
+            padding: 0;
+            background: #111;
+            color: #eee;
+            border: 1px solid #555;
+            border-radius: 4px;
+            font-size: 14px;
+            line-height: 1;
+            cursor: pointer;
+        }
+        #spec-menu-btn:hover { border-color: #7ddb9b; color: #7ddb9b; }
+        .spec-menu {
+            position: absolute;
+            top: 32px;
+            right: 6px;
+            z-index: 5;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            min-width: 250px;
+            background: #1a1a1a;
+            border: 1px solid #555;
+            border-radius: 6px;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+            padding: 10px 12px;
+            font-size: 11px;
+            color: #999;
+        }
+        .spec-menu[hidden] { display: none; }
+        .spec-menu label { display: grid; grid-template-columns: 62px 1fr 48px; gap: 8px; align-items: center; white-space: nowrap; }
+        .spec-menu input[type="range"] { width: 100%; accent-color: #7ddb9b; height: 16px; }
+        .spec-menu span { color: #ccc; text-align: right; }
+
+        tr.playing td { background: #1d3a24; }
     </style>
 </head>
 
 <body>
     <div class="container">
 
-        <h2>Station Manager</h2>
-        <p><a href="index.html">&larr; Back to radio control</a></p>
+        <div class="page-header">
+            <h2>Station Manager</h2>
+            <a class="admin-link" href="index.html" title="Back to radio control">&#8592; Back</a>
+        </div>
 
         <div id="meta">Loading station list...</div>
+
+        <div class="preview-cards">
+            <div class="card card-cover">
+                <img id="preview-cover" class="cover-img" src="radio.svg" alt="cover">
+                <canvas id="cover-map" class="cover-map" hidden></canvas>
+                <div id="cover-noise" class="cover-noise"></div>
+                <div id="cover-track" class="cover-track"></div>
+                <button id="cover-globe-btn" class="cover-icon-btn" title="Карта сервера">
+                    <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.5">
+                        <circle cx="12" cy="12" r="9"></circle>
+                        <ellipse cx="12" cy="12" rx="4.5" ry="9"></ellipse>
+                        <line x1="3.6" y1="9" x2="20.4" y2="9"></line>
+                        <line x1="3" y1="12" x2="21" y2="12"></line>
+                        <line x1="3.6" y1="15" x2="20.4" y2="15"></line>
+                    </svg>
+                </button>
+            </div>
+            <div class="preview-right">
+                <div class="card card-track">
+                    <div class="track-top">
+                        <div id="preview-state" class="preview-state">Stopped</div>
+                        <div class="track-btns">
+                            <button id="preview-prev" class="icon-btn" title="Previous station">⏮</button>
+                            <button id="preview-stop" class="icon-btn danger" title="Play / stop">▶</button>
+                            <button id="preview-next" class="icon-btn" title="Next station">⏭</button>
+                        </div>
+                    </div>
+                    <div id="preview-station" class="preview-station" title="">—</div>
+                    <div id="preview-codec" class="preview-codec">—</div>
+                    <div id="preview-extra" class="preview-codec" title="">—</div>
+                    <div id="preview-track" class="preview-track" title="">—</div>
+                    <div class="preview-vol-row">
+                        <span class="preview-vol-icon">🔊</span>
+                        <input id="preview-vol" type="range" min="0" max="100" value="100" title="Preview volume">
+                    </div>
+                </div>
+                <div class="card card-spec">
+                    <div class="spec-wrap">
+                        <canvas id="preview-spectrum" class="preview-spectrum" width="600" height="72"></canvas>
+                        <button id="spec-menu-btn" title="Настройки спектра">⋮</button>
+                        <div id="spec-menu" class="spec-menu" hidden>
+                            <label title="Верх шкалы в дБFS">Верх, дБ <input id="tune-dbmax" type="range" min="-30" max="0" step="1" value="-6"><span id="tune-dbmax-v">−6</span></label>
+                            <label title="Низ шкалы в дБFS">Низ, дБ <input id="tune-dbmin" type="range" min="-120" max="-40" step="1" value="-80"><span id="tune-dbmin-v">−80</span></label>
+                            <label title="Время падения пикового индикатора на всю шкалу">Пики <input id="tune-grav" type="range" min="0.2" max="2" step="0.1" value="0.6"><span id="tune-grav-v">0.6 с</span></label>
+                            <label title="Время нарастания столбика на всю шкалу (0 — мгновенно)">Атака <input id="tune-atk" type="range" min="0" max="900" step="10" value="0"><span id="tune-atk-v">0 мс</span></label>
+                            <label title="Время спада столбика на всю шкалу (0 — мгновенно)">Спад <input id="tune-rel" type="range" min="0" max="900" step="10" value="0"><span id="tune-rel-v">0 мс</span></label>
+                            <label title="Размер FFT анализатора">FFT <input id="tune-fft" type="range" min="0" max="5" step="1" value="4"><span id="tune-fft-v">4096</span></label>
+                            <label title="Количество столбиков">Столбики <input id="tune-bars" type="range" min="16" max="96" step="8" value="48"><span id="tune-bars-v">48</span></label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <audio id="preview-audio" preload="none"></audio>
 
         <div class="admin-toolbar">
             <button id="btn-add" class="icon-btn">+ Add station</button>
@@ -163,7 +488,15 @@
 
     </div>
 
-    <script src="admin.js"></script>
+    <script src="covermap.js?v=1"></script>
+    <script src="admin.js?v=23"></script>
+<script>
+if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+        navigator.serviceWorker.register('sw.js').catch((err) => console.warn('SW registration failed:', err));
+    });
+}
+</script>
 </body>
 
 </html>

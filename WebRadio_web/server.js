@@ -15,7 +15,16 @@ const app = express();
 app.set('trust proxy', 1); // Trust the first proxy
 
 // Security headers
-app.use(helmet());
+app.use(helmet({
+    contentSecurityPolicy: {
+        directives: {
+            ...helmet.contentSecurityPolicy.getDefaultDirectives(),
+            // Cover search in admin.html (browser fetch) + artwork <img>.
+            'connect-src': ["'self'", 'https://itunes.apple.com'],
+            'img-src': ["'self'", 'data:', 'https://is1-ssl.mzstatic.com', 'https://is2-ssl.mzstatic.com', 'https://is3-ssl.mzstatic.com', 'https://is4-ssl.mzstatic.com', 'https://is5-ssl.mzstatic.com'],
+        },
+    },
+}));
 
 // Middleware to parse JSON bodies
 app.use(express.json());
@@ -42,6 +51,556 @@ const MQTT_PREFIX = 'Home/WebRadio2';
 const MQTT_PREFIXES = ['Home/WebRadio1', 'Home/WebRadio2'];
 const STATIONS_FILE = process.env.STATIONS_FILE || 'data/stations.json';
 const MAX_STATIONS = 255;
+
+// --- Smart alarm: wake on a chosen station with volume ramp, then back ---
+// Schedule page: alarm.html. All logic server-side; no firmware changes.
+const ALARM_FILE = process.env.ALARM_FILE || 'data/alarm.json';
+let alarmCfg = null; // { timezone, weekday:{...}, weekend:{...}, eveningStationId, runtime, lastRun }
+let alarmAskedAt = 0; // last "?" probe sent while waiting for a first status snapshot
+
+// A window is identified by (date, profile, t1): only a run that really covered
+// THIS window blocks a refire. Aborts/skips/stale marks carry the same key so a
+// new window (or an edited schedule) always fires.
+const alarmFmt = (mins) => String(Math.floor(mins / 60)).padStart(2, '0') + ':' + String(mins % 60).padStart(2, '0');
+const lastRunKey = (lr) => lr ? (lr.date + '|' + lr.profile + '|' + (lr.t1 || '')) : null;
+
+const alarmDefaultProfile = (t1, t2) => ({
+    enabled: true, t1, t2,
+    stationId: null,      // wake station id (Relax Morning Birds by default, set on first save)
+    startVolume: 1, targetVolume: 12, rampMin: 20,
+});
+
+const alarmDefaultSleep = () => ({
+    enabled: false, at: '23:00', rampMin: 15,
+});
+
+const alarmDefaults = () => ({
+    timezone: 'Asia/Yekaterinburg',
+    weekday: alarmDefaultProfile('06:30', '07:30'),
+    weekend: alarmDefaultProfile('07:00', '08:00'),
+    eveningStationId: null,
+    runtime: null,        // active scenario (persisted to survive restarts)
+    lastRun: null,        // { date, profile, result }
+    sleep: alarmDefaultSleep(),
+});
+
+const persistAlarmFile = () => {
+    try {
+        const dir = path.dirname(ALARM_FILE);
+        const tmp = ALARM_FILE + '.tmp';
+        fs.mkdirSync(dir, { recursive: true });
+        fs.writeFileSync(tmp, JSON.stringify(alarmCfg, null, 2), 'utf8');
+        fs.renameSync(tmp, ALARM_FILE);
+    } catch (err) {
+        console.warn('Could not persist ' + ALARM_FILE + ': ' + err.message);
+    }
+};
+
+const loadAlarm = () => {
+    alarmCfg = alarmDefaults();
+    try {
+        const data = JSON.parse(fs.readFileSync(ALARM_FILE, 'utf8'));
+        if (data && typeof data === 'object') {
+            if (typeof data.timezone === 'string' && data.timezone) alarmCfg.timezone = data.timezone;
+            for (const k of ['weekday', 'weekend']) {
+                if (data[k] && typeof data[k] === 'object') alarmCfg[k] = { ...alarmCfg[k], ...data[k] };
+            }
+            if (data.sleep && typeof data.sleep === 'object') {
+                alarmCfg.sleep = { ...alarmDefaultSleep(), ...data.sleep };
+            }
+            if (Number.isInteger(data.eveningStationId)) alarmCfg.eveningStationId = data.eveningStationId;
+            if (data.lastRun && typeof data.lastRun === 'object') alarmCfg.lastRun = data.lastRun;
+            // Keep a runtime only if it is still inside its window; otherwise drop it
+            if (data.runtime && typeof data.runtime === 'object') alarmCfg.runtime = data.runtime;
+        }
+        console.log('Loaded alarm schedule from ' + ALARM_FILE);
+    } catch (err) {
+        console.warn('Could not load ' + ALARM_FILE + ': ' + err.message + ' (using defaults)');
+    }
+    // Default wake station: Relax Morning Birds if present
+    const birds = stationList.stations.find(s => /morning birds/i.test(s.name));
+    for (const k of ['weekday', 'weekend']) {
+        if (!Number.isInteger(alarmCfg[k].stationId) && birds) alarmCfg[k].stationId = birds.id;
+    }
+};
+
+// Local wall-clock in the configured timezone: { dateStr, dayIdx (0=Sun), nowMin }
+const alarmNow = () => {
+    const tz = alarmCfg.timezone || 'Asia/Yekaterinburg';
+    const parts = new Intl.DateTimeFormat('en-CA', {
+        timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit',
+        hour: '2-digit', minute: '2-digit', hour12: false, weekday: 'short',
+    }).formatToParts(new Date());
+    const get = (t) => (parts.find(p => p.type === t) || {}).value;
+    const wd = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 }[get('weekday')] ?? 1;
+    return {
+        dateStr: get('year') + '-' + get('month') + '-' + get('day'),
+        dayIdx: wd,
+        nowMin: parseInt(get('hour'), 10) * 60 + parseInt(get('minute'), 10),
+    };
+};
+
+const alarmChannelById = (id) => {
+    const i = stationList.stations.findIndex(s => s.id === id);
+    return i >= 0 ? i + 1 : null;
+};
+
+const alarmPublish = (cmd) => {
+    client.publish(MQTT_PREFIX + '/Action', cmd);
+};
+
+// Nudge volume toward target with a few vol steps (firmware accepts vol+/vol- only)
+const alarmStepVolume = (target) => {
+    const cur = parseInt(radioState.Volume, 10);
+    if (Number.isNaN(cur)) { alarmPublish('?'); return false; }
+    const delta = target - cur;
+    if (delta === 0) return true;
+    const step = delta > 0 ? 'vol+' : 'vol-';
+    const n = Math.min(Math.abs(delta), 3);
+    for (let i = 0; i < n; i++) client.publish(MQTT_PREFIX + '/Action', step);
+    return false;
+};
+
+const alarmAbort = (reason) => {
+    const rt = alarmCfg.runtime;
+    if (!rt) return;
+    console.log('Alarm scenario aborted in phase ' + ((rt && rt.phase) || '?') + ': ' + reason);
+    alarmCfg.runtime = null;
+    alarmCfg.lastRun = { date: rt.date, profile: rt.profile, t1: alarmFmt(rt.t1min), result: 'aborted: ' + reason };
+    persistAlarmFile();
+};
+
+const alarmStart = (profileName, prof, now) => {
+    const wakeCh = alarmChannelById(prof.stationId);
+    if (!wakeCh) {
+        alarmCfg.lastRun = { date: now.dateStr, profile: profileName, t1: t1str, result: 'failed: wake station not in list' };
+        persistAlarmFile();
+        return;
+    }
+    const t1 = parseInt(prof.t1.slice(0, 2), 10) * 60 + parseInt(prof.t1.slice(3), 10);
+    const t2 = parseInt(prof.t2.slice(0, 2), 10) * 60 + parseInt(prof.t2.slice(3), 10);
+    const t1str = prof.t1;
+    // Don't hijack a radio the user already turned on themselves
+    if (radioState.State && String(radioState.State).includes('Power ON')) {
+        alarmCfg.lastRun = { date: now.dateStr, profile: profileName, t1: t1str, result: 'skipped: already on' };
+        persistAlarmFile();
+        console.log('Alarm skipped: radio already on');
+        return;
+    }
+    alarmCfg.runtime = {
+        date: now.dateStr, profile: profileName, phase: 'starting',
+        wakeId: prof.stationId, wakeCh, t1min: t1, t2min: t2,
+        startVol: prof.startVolume, targetVol: prof.targetVolume, rampMin: prof.rampMin,
+        t0: Date.now(), nextVolAt: Date.now() + 45000,
+        expectedCh: wakeCh, expectedVol: prof.startVolume,
+        holdUntil: Date.now() + 90000,
+    };
+    alarmPublish('sAlarm OFF'); // our schedule replaces the device's own alarm
+    alarmPublish('c' + wakeCh); // powers on + switches to the wake station
+    alarmPublish('?');
+    console.log('Alarm scenario started (' + profileName + '): ch' + wakeCh);
+    persistAlarmFile();
+};
+
+const alarmTick = () => {
+    if (!alarmCfg) return;
+    const now = alarmNow();
+    const rt = alarmCfg.runtime;
+    if (!rt) {
+        const isWknd = now.dayIdx === 0 || now.dayIdx === 6;
+        const name = isWknd ? 'weekend' : 'weekday';
+        const prof = alarmCfg[name];
+        if (prof && prof.enabled && Number.isInteger(prof.stationId)) {
+            const t1 = parseInt(prof.t1.slice(0, 2), 10) * 60 + parseInt(prof.t1.slice(3), 10);
+            const already = lastRunKey(alarmCfg.lastRun) === (now.dateStr + '|' + name + '|' + prof.t1);
+            // Fire only inside a 10-minute window after t1 (never "any time after t1"),
+            // and never on an empty status snapshot (e.g. right after a server restart).
+            if (now.nowMin >= t1 && now.nowMin < t1 + 10 && !already) {
+                if (!radioState.State) {
+                    if (Date.now() - alarmAskedAt > 5 * 60 * 1000) {
+                        alarmAskedAt = Date.now();
+                        alarmPublish('?');
+                    }
+                } else {
+                    alarmStart(name, prof, now);
+                }
+            }
+        }
+        // Sleep timer: same window logic, keyed by (date, 'sleep', at).
+        // Runs inside the same no-runtime branch as the wake profiles.
+        {
+            const sl = alarmCfg.sleep;
+        if (sl && sl.enabled) {
+            const at = parseInt(sl.at.slice(0, 2), 10) * 60 + parseInt(sl.at.slice(3), 10);
+            const already = lastRunKey(alarmCfg.lastRun) === (now.dateStr + '|sleep|' + sl.at);
+            if (now.nowMin >= at && now.nowMin < at + 10 && !already) {
+                if (!radioState.State) {
+                    if (Date.now() - alarmAskedAt > 5 * 60 * 1000) {
+                        alarmAskedAt = Date.now();
+                        alarmPublish('?');
+                    }
+                } else if (!String(radioState.State).includes('Power ON')) {
+                    alarmCfg.lastRun = { date: now.dateStr, profile: 'sleep', t1: sl.at, result: 'skipped: already off' };
+                    console.log('Sleep timer skipped: radio already off');
+                    persistAlarmFile();
+                } else {
+                    const cur = parseInt(radioState.Volume, 10);
+                    alarmCfg.runtime = {
+                        date: now.dateStr, profile: 'sleep', kind: 'sleep', phase: 'fading',
+                        t1min: at, startVol: Number.isNaN(cur) ? null : cur, rampMin: sl.rampMin,
+                        t0: Date.now(), nextVolAt: Date.now() + 30000,
+                        expectedCh: parseChannel(radioState.Station),
+                        expectedVol: Number.isNaN(cur) ? null : cur,
+                        holdUntil: Date.now() + 90000,
+                    };
+                    alarmPublish('?');
+                    console.log('Sleep timer started, fading over ' + sl.rampMin + ' min');
+                    persistAlarmFile();
+                }
+            }
+        }
+        }
+        return;
+    }
+    // Active scenario
+    if (rt.date !== now.dateStr || now.nowMin >= rt.t2min + 30) {
+        alarmCfg.runtime = null;
+        alarmCfg.lastRun = { date: rt.date, profile: rt.profile, t1: alarmFmt(rt.t1min), result: 'finished (stale)' };
+        console.log('Alarm scenario stale, dropping: ' + rt.profile + ' ' + alarmFmt(rt.t1min));
+        persistAlarmFile();
+        return;
+    }
+    if (rt.phase === 'starting') {
+        // Wait until the device reports the wake channel, then begin the ramp
+        const ch = parseChannel(radioState.Station);
+        if (ch === rt.expectedCh) {
+            rt.phase = 'ramping';
+            persistAlarmFile();
+        } else if (Date.now() - rt.t0 > 5 * 60 * 1000) {
+            alarmAbort('wake station did not start');
+        }
+        return;
+    }
+    if (rt.phase === 'fading') {
+        // Linear fade: startVol -> 0 over rampMin, then power off.
+        if (rt.startVol === null || rt.startVol === undefined) {
+            const cur0 = parseInt(radioState.Volume, 10);
+            if (Number.isNaN(cur0)) { alarmPublish('?'); return; }
+            rt.startVol = cur0;
+            rt.expectedVol = cur0;
+            persistAlarmFile();
+        }
+        const elapsed = (Date.now() - rt.t0) / 1000;
+        const total = Math.max(rt.rampMin * 60, 60);
+        const want = Math.round(rt.startVol * (1 - Math.min(elapsed / total, 1)));
+        rt.expectedVol = want;
+        const cur = parseInt(radioState.Volume, 10);
+        if (!Number.isNaN(cur) && cur <= 0) {
+            rt.phase = 'powering_off';
+            rt.t0 = Date.now();
+            rt.holdUntil = Date.now() + 60000;
+            alarmPublish('0'); // firmware power off
+            console.log('Sleep timer: volume at 0, powering off');
+            persistAlarmFile();
+            return;
+        }
+        if (Date.now() >= rt.nextVolAt) {
+            rt.nextVolAt = Date.now() + 60000;
+            if (!alarmStepVolume(want)) {
+                rt.holdUntil = Date.now() + 75000;
+                console.log('Sleep timer: fading volume ' + radioState.Volume + ' -> ' + want);
+            }
+            persistAlarmFile();
+        }
+        return;
+    }
+    if (rt.phase === 'powering_off') {
+        const st = String(radioState.State || '');
+        if (st && !st.includes('Power ON')) {
+            alarmCfg.runtime = null;
+            alarmCfg.lastRun = { date: rt.date, profile: rt.profile, t1: alarmFmt(rt.t1min), result: 'finished' };
+            console.log('Sleep timer finished: radio is off');
+            persistAlarmFile();
+            return;
+        }
+        if (Date.now() - rt.t0 > 90 * 1000) {
+            alarmCfg.runtime = null;
+            alarmCfg.lastRun = { date: rt.date, profile: rt.profile, t1: alarmFmt(rt.t1min), result: 'finished (power-off unconfirmed)' };
+            console.log('Sleep timer finished, power-off unconfirmed');
+            persistAlarmFile();
+            return;
+        }
+        return;
+    }
+    if (rt.phase === 'ramping') {
+        if (now.nowMin >= rt.t2min) {
+            // Switchback to the evening station (resolved by id at this moment),
+            // then verify the channel and the volume closed-loop.
+            const ech = Number.isInteger(alarmCfg.eveningStationId)
+                ? alarmChannelById(alarmCfg.eveningStationId) : null;
+            if (ech) {
+                rt.phase = 'switching';
+                rt.t0 = Date.now();
+                rt.expectedCh = ech;
+                rt.expectedVol = rt.targetVol;
+                rt.holdUntil = Date.now() + 120000;
+                alarmPublish('c' + ech);
+                console.log('Alarm switchback to ch' + ech);
+            } else {
+                console.log('Alarm: no evening station known, staying on wake station');
+                rt.phase = 'verifying';
+                rt.verifyUntil = Date.now() + 300000;
+            }
+            persistAlarmFile();
+            return;
+            }
+            if (rt.phase === 'switching') {
+                const ch = parseChannel(radioState.Station);
+                if (ch === rt.expectedCh) {
+                    rt.phase = 'verifying';
+                    rt.verifyUntil = Date.now() + 300000;
+                    console.log('Alarm: evening station confirmed on ch' + ch + ', verifying volume');
+                    persistAlarmFile();
+                } else if (Date.now() - rt.t0 > 3 * 60 * 1000) {
+                    rt.phase = 'verifying';
+                    rt.verifyUntil = Date.now() + 120000;
+                    console.log('Alarm: evening station did not confirm, verifying volume anyway');
+                    persistAlarmFile();
+                }
+                return;
+            }
+            if (rt.phase === 'verifying') {
+                const cur = parseInt(radioState.Volume, 10);
+                const ch = parseChannel(radioState.Station);
+                const okVol = !Number.isNaN(cur) && Math.abs(cur - rt.targetVol) <= 1;
+                if (okVol && ch === rt.expectedCh) {
+                    alarmCfg.runtime = null;
+                    alarmCfg.lastRun = { date: rt.date, profile: rt.profile, t1: alarmFmt(rt.t1min), result: 'finished' };
+                    console.log('Alarm finished: ch' + ch + ' vol ' + cur);
+                    persistAlarmFile();
+                    return;
+                }
+                if (Date.now() > rt.verifyUntil) {
+                    alarmCfg.runtime = null;
+                    alarmCfg.lastRun = { date: rt.date, profile: rt.profile, t1: alarmFmt(rt.t1min), result: 'finished (volume unverified, vol=' + radioState.Volume + ')' };
+                    console.log('Alarm finished unverified: ch' + ch + ' vol ' + radioState.Volume);
+                    persistAlarmFile();
+                    return;
+                }
+                if (!okVol) {
+                    if (alarmStepVolume(rt.targetVol)) {
+                        console.log('Alarm verify: volume already ' + cur);
+                    } else {
+                        rt.holdUntil = Date.now() + 60000;
+                        console.log('Alarm verify: nudging volume ' + cur + ' -> ' + rt.targetVol);
+                    }
+                    persistAlarmFile();
+                }
+                return;
+        }
+        // Volume ramp: linear startVol -> targetVol over rampMin
+        const elapsed = (Date.now() - rt.t0) / 1000;
+        const total = Math.max(rt.rampMin * 60, 60);
+        const want = Math.round(rt.startVol + (rt.targetVol - rt.startVol) * Math.min(elapsed / total, 1));
+        rt.expectedVol = want;
+        if (Date.now() >= rt.nextVolAt) {
+            rt.nextVolAt = Date.now() + 60000;
+            if (alarmStepVolume(want)) {
+                // already there; check again soon
+                rt.nextVolAt = Date.now() + 60000;
+            } else {
+                rt.holdUntil = Date.now() + 75000;
+                    console.log('Alarm ramp: nudging volume ' + radioState.Volume + ' -> ' + want);
+            }
+            persistAlarmFile();
+        }
+    }
+};
+
+// Watch user interference: any Station/Volume change that is not ours aborts the scenario
+const trackAlarmUpdate = (suffix, value) => {
+    const rt = alarmCfg && alarmCfg.runtime;
+    if (suffix === 'Station' && !rt) {
+        // Remember the last user-tuned station as the "evening" one
+        const ch = parseChannel(value);
+        const s = ch ? stationList.stations[ch - 1] : null;
+        if (s && alarmCfg.eveningStationId !== s.id) {
+            alarmCfg.eveningStationId = s.id;
+            persistAlarmFile();
+        }
+        return;
+    }
+    if (!rt || Date.now() < rt.holdUntil) return;
+    if (suffix === 'Station') {
+        const ch = parseChannel(value);
+        if (ch && rt.expectedCh && ch !== rt.expectedCh) alarmAbort('station changed by user to ch' + ch);
+        return;
+    }
+    if (suffix === 'Volume') {
+        const v = parseInt(value, 10);
+        if (!Number.isNaN(v) && Math.abs(v - rt.expectedVol) > 1) {
+            alarmAbort('volume changed by user to ' + v);
+        }
+        return;
+    }
+    if (suffix === 'State' && !String(value).includes('Power ON')) {
+        if (rt && rt.kind === 'sleep' && (rt.phase === 'fading' || rt.phase === 'powering_off')) {
+            alarmCfg.runtime = null;
+            alarmCfg.lastRun = { date: rt.date, profile: rt.profile, t1: alarmFmt(rt.t1min), result: 'finished (turned off by user)' };
+            console.log('Sleep timer finished: turned off by user');
+            persistAlarmFile();
+            return;
+        }
+        alarmAbort('powered off by user');
+        return;
+    }
+};
+
+setInterval(alarmTick, 20000);
+
+
+// --- Usage statistics (per stable station id, not channel number) ---
+const STATS_FILE = process.env.STATS_FILE || 'data/stats.json';
+let usageStats = { version: 1, updatedAt: null, stations: {} };
+let statsDirty = false;
+let currentListenKey = null;
+
+const statsEntry = (key, name, url) => {
+    let e = usageStats.stations[key];
+    if (!e) {
+        e = usageStats.stations[key] = {
+            id: key, name: name || key, url: url || '',
+            listenSec: 0, switches: 0,
+            dropSamples: 0, dropSum: 0, dropMax: 0,
+            errCount: 0, lastError: null,
+            lastStream: null, lastTitle: null, lastSeen: null,
+        };
+        statsDirty = true;
+    } else {
+        if (name && e.name !== name) { e.name = name; statsDirty = true; }
+        if (url !== undefined && e.url !== url) { e.url = url; statsDirty = true; }
+    }
+    return e;
+};
+
+// Channel N (1-based position) -> stable station id at this moment
+const statsKeyForChannel = (ch) => {
+    const s = stationList.stations[ch - 1];
+    if (s) return { key: 's' + s.id, name: s.name, url: s.url };
+    return null;
+};
+
+const parseChannel = (stationStr) => {
+    const m = String(stationStr || '').match(/^\s*(\d+)/);
+    return m ? parseInt(m[1], 10) : null;
+};
+
+const LOG_ERROR_RE = /failed|failure|error|timeout|timed out|disconnected|abort|\b40[134]\b|\b50[03]\b|unable|couldn/i;
+
+const trackStatusUpdate = (suffix, value) => {
+    if (suffix === 'Station') {
+        const ch = parseChannel(value);
+        const r = ch ? statsKeyForChannel(ch) : null;
+        const key = r ? r.key : (ch ? 'ch' + ch : null);
+        if (!key) { currentListenKey = null; return; }
+        const e = r ? statsEntry(key, r.name, r.url) : statsEntry(key, String(value).slice(0, 60), '');
+        if (currentListenKey !== key) {
+            e.switches += 1;
+            currentListenKey = key;
+            statsDirty = true;
+        }
+        return;
+    }
+    if (suffix === 'State') {
+        if (!String(value).includes('Power ON')) currentListenKey = null;
+        return;
+    }
+    if (!currentListenKey) return;
+    const e = usageStats.stations[currentListenKey];
+    if (!e) return;
+    if (suffix === 'Dropouts') {
+        const v = parseInt(value, 10);
+        if (!Number.isNaN(v)) {
+            e.dropSamples += 1;
+            e.dropSum += v;
+            if (v > e.dropMax) e.dropMax = v;
+            statsDirty = true;
+        }
+        return;
+    }
+    if (suffix === 'Log') {
+        const s = String(value);
+        if (LOG_ERROR_RE.test(s) && e.lastError !== s) {
+            e.errCount += 1;
+            e.lastError = s.slice(0, 160);
+            statsDirty = true;
+        }
+        if (/kb\/s/i.test(s) && e.lastStream !== s) {
+            e.lastStream = s.slice(0, 120);
+            statsDirty = true;
+        }
+        return;
+    }
+    if (suffix === 'Title') {
+        const s = String(value).slice(0, 160);
+        if (e.lastTitle !== s) { e.lastTitle = s; statsDirty = true; }
+    }
+};
+
+// Refresh stored names/urls after a station list write (ids are stable)
+const refreshStatsNames = () => {
+    for (const s of stationList.stations) {
+        const e = usageStats.stations['s' + s.id];
+        if (e) {
+            if (e.name !== s.name) { e.name = s.name; statsDirty = true; }
+            if (e.url !== s.url) { e.url = s.url; statsDirty = true; }
+        }
+    }
+};
+
+const persistStatsFile = () => {
+    if (!statsDirty) return;
+    try {
+        const dir = path.dirname(STATS_FILE);
+        const tmp = STATS_FILE + '.tmp';
+        fs.mkdirSync(dir, { recursive: true });
+        usageStats.updatedAt = new Date().toISOString();
+        fs.writeFileSync(tmp, JSON.stringify(usageStats, null, 2), 'utf8');
+        fs.renameSync(tmp, STATS_FILE);
+        statsDirty = false;
+    } catch (err) {
+        console.warn('Could not persist ' + STATS_FILE + ': ' + err.message);
+    }
+};
+
+const loadStats = () => {
+    try {
+        const data = JSON.parse(fs.readFileSync(STATS_FILE, 'utf8'));
+        if (data && typeof data === 'object' && data.stations && typeof data.stations === 'object') {
+            usageStats = { version: 1, updatedAt: data.updatedAt || null, stations: data.stations };
+            console.log('Loaded usage stats for ' + Object.keys(usageStats.stations).length + ' entries from ' + STATS_FILE);
+            return;
+        }
+    } catch (err) {
+        console.warn('Could not load ' + STATS_FILE + ': ' + err.message);
+    }
+    usageStats = { version: 1, updatedAt: null, stations: {} };
+};
+
+// Every 10 s: credit listening time to the current station; persist once a minute
+setInterval(() => {
+    if (currentListenKey && radioState.State && String(radioState.State).includes('Power ON')) {
+        const e = usageStats.stations[currentListenKey];
+        if (e) {
+            e.listenSec += 10;
+            e.lastSeen = new Date().toISOString();
+            statsDirty = true;
+        }
+    }
+    if (!persistStatsFile._n) persistStatsFile._n = 0;
+    if (++persistStatsFile._n >= 6) { persistStatsFile._n = 0; persistStatsFile(); }
+}, 10000);
+
 
 // --- Station list (single source of truth) ---
 let stationList = { version: 0, updatedAt: null, stations: [] };
@@ -135,6 +694,7 @@ const saveStations = (nextStations, res) => {
         return res.status(500).json({ success: false, message: 'Failed to persist station list' });
     }
     console.log(`Station list saved: ${stationList.stations.length} stations (version ${nextVersion})`);
+    refreshStatsNames();
     MQTT_PREFIXES.forEach(publishStations);
     broadcastUpdate();
     res.json({ success: true, data: stationList });
@@ -222,6 +782,8 @@ client.on('message', (topic, message) => {
         updated = true;
     }
 
+    trackStatusUpdate(topicSuffix, value);
+    trackAlarmUpdate(topicSuffix, value);
     if (updated) {
         broadcastUpdate();
     }
@@ -232,6 +794,9 @@ const apiRouter = express.Router();
 
 // Middleware for API authentication
 const apiAuth = (req, res, next) => {
+    // /preview authenticates itself (previewAuth allows a query-string token
+    // because <audio> tags cannot set headers) - let it through here.
+    if (req.path === '/preview') return next();
     const token = req.headers['x-auth-token'];
     if (token && token === SECRET_TOKEN) {
         return next();
@@ -250,6 +815,83 @@ apiRouter.get('/status', (req, res) => {
         data: radioState
     });
 });
+
+// Accumulated listening statistics, keyed by stable station id ('s<ID>').
+apiRouter.get('/stats', (req, res) => {
+    res.json({
+        success: true,
+        data: usageStats,
+    });
+});
+
+// Smart alarm schedule (server-side scenario; needs no firmware changes)
+apiRouter.get('/alarm/schedule', (req, res) => {
+    const { runtime, ...rest } = alarmCfg;
+    res.json({
+        success: true,
+        data: { ...rest, active: !!runtime, phase: runtime ? runtime.phase : null },
+    });
+});
+
+apiRouter.put(
+    '/alarm/schedule',
+    (req, res) => {
+        const b = req.body || {};
+        const timeRe = /^([01]\d|2[0-3]):[0-5]\d$/;
+        const checkProfile = (p, name) => {
+            if (!p || typeof p !== 'object') return name + ': must be an object';
+            if (typeof p.enabled !== 'boolean') return name + '.enabled must be boolean';
+            if (!timeRe.test(p.t1 || '')) return name + '.t1 must be HH:MM';
+            if (!timeRe.test(p.t2 || '')) return name + '.t2 must be HH:MM';
+            const m1 = parseInt(p.t1.slice(0, 2), 10) * 60 + parseInt(p.t1.slice(3), 10);
+            const m2 = parseInt(p.t2.slice(0, 2), 10) * 60 + parseInt(p.t2.slice(3), 10);
+            if (m2 <= m1) return name + '.t2 must be later than t1';
+            if (!Number.isInteger(p.stationId)) return name + '.stationId must be an integer id';
+            if (!stationList.stations.some(s => s.id === p.stationId)) {
+                return name + '.stationId ' + p.stationId + ' is not in the station list';
+            }
+            for (const k of ['startVolume', 'targetVolume']) {
+                if (!Number.isInteger(p[k]) || p[k] < 0 || p[k] > 21) return name + '.' + k + ' must be 0..21';
+            }
+            if (p.startVolume > p.targetVolume) return name + ': startVolume must not exceed targetVolume';
+            if (!Number.isInteger(p.rampMin) || p.rampMin < 5 || p.rampMin > 60) {
+                return name + '.rampMin must be 5..60 minutes';
+            }
+            return null;
+        };
+        if (b.timezone !== undefined) {
+            try { new Intl.DateTimeFormat('en-US', { timeZone: String(b.timezone) }); }
+            catch (e) { return res.status(422).json({ success: false, message: 'bad timezone' }); }
+            alarmCfg.timezone = String(b.timezone);
+        }
+        if (b.sleep !== undefined) {
+            const p = b.sleep;
+            if (!p || typeof p !== 'object') return res.status(422).json({ success: false, message: 'sleep must be an object' });
+            if (typeof p.enabled !== 'boolean') return res.status(422).json({ success: false, message: 'sleep.enabled must be boolean' });
+            if (!timeRe.test(p.at || '')) return res.status(422).json({ success: false, message: 'sleep.at must be HH:MM' });
+            if (!Number.isInteger(p.rampMin) || p.rampMin < 5 || p.rampMin > 60) {
+                return res.status(422).json({ success: false, message: 'sleep.rampMin must be 5..60 minutes' });
+            }
+            alarmCfg.sleep = { enabled: p.enabled, at: p.at, rampMin: p.rampMin };
+        }
+        for (const k of ['weekday', 'weekend']) {
+            if (b[k] !== undefined) {
+                const err = checkProfile(b[k], k);
+                if (err) return res.status(422).json({ success: false, message: err });
+                alarmCfg[k] = {
+                    enabled: b[k].enabled, t1: b[k].t1, t2: b[k].t2,
+                    stationId: b[k].stationId, startVolume: b[k].startVolume,
+                    targetVolume: b[k].targetVolume, rampMin: b[k].rampMin,
+                };
+            }
+        }
+        // A schedule edit cancels a running scenario so the new times take effect cleanly
+        alarmCfg.runtime = null;
+        persistAlarmFile();
+        const { runtime, ...rest } = alarmCfg;
+        res.json({ success: true, data: { ...rest, active: false, phase: null } });
+    }
+);
 
 const publishMqttCommand = (res, command, successData) => {
     const topic = `${MQTT_PREFIX}/Action`;
@@ -543,6 +1185,362 @@ const openUpstream = async (url, timeoutMs, attempts = 2) => {
     throw (last || new Error('upstream unavailable'));
 };
 
+// --- Browser preview: same-origin audio pipe + metadata probe (admin page) ---
+// Browsers block http:// streams on an https:// page (mixed content), so the
+// admin preview plays through this same-origin pipe. SSRF guard: only public
+// http(s) hosts, no private/loopback/link-local addresses, max 3 redirects.
+const PREVIEW_UPSTREAM_HEADERS = {
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36',
+    'Accept': 'audio/*,*/*;q=0.9',
+    'Accept-Language': 'en-US,en;q=0.9',
+    // Deliberately NO Icy-MetaData here: interleaved metadata blocks break
+    // browser <audio> decoding (plays ~2 s then loops). Titles come from /probe.
+};
+const dns = require('dns').promises;
+const net = require('net');
+
+const isPublicHttpUrl = async (raw) => {
+    let u;
+    try {
+        u = new URL(raw);
+    } catch (e) { return { ok: false, reason: 'bad url' }; }
+    if (u.protocol !== 'http:' && u.protocol !== 'https:') return { ok: false, reason: 'only http(s)' };
+    if (u.username || u.password) return { ok: false, reason: 'no credentials in url' };
+    let addrs;
+    try {
+        addrs = await dns.lookup(u.hostname, { all: true });
+    } catch (e) { return { ok: false, reason: 'dns failed' }; }
+    for (const a of addrs) {
+        const ip = a.address;
+        if (net.isIP(ip) === 4) {
+            const p = ip.split('.').map(Number);
+            const first = p[0], second = p[1];
+            if (first === 10 || first === 127 || (first === 172 && second >= 16 && second <= 31) ||
+                (first === 192 && second === 168) || (first === 169 && second === 254) ||
+                first === 0 || (first === 100 && second >= 64 && second <= 127) ||
+                first >= 224) return { ok: false, reason: 'non-public ip' };
+        } else {
+            // IPv6: block loopback, link-local, unique-local, multicast
+            const low = ip.toLowerCase();
+            if (low === '::1' || low.startsWith('fe80') || low.startsWith('fec0') ||
+                low.startsWith('fc') || low.startsWith('fd') || low.startsWith('ff')) {
+                return { ok: false, reason: 'non-public ip' };
+            }
+        }
+    }
+    return { ok: true, url: u.toString() };
+};
+
+// Open upstream with manual redirect following (max 3). Returns the response
+// object positioned at the audio body (redirects already consumed).
+const openPreviewUpstream = (url, timeoutMs, wantMeta) => new Promise((resolve, reject) => {
+    const headers = { ...PREVIEW_UPSTREAM_HEADERS };
+    if (wantMeta) {
+        headers['Range'] = 'bytes=0-65535';
+        // Probe-only: ask for interleaved StreamTitle blocks. The /preview
+        // player path (wantMeta=false) keeps this header OFF on purpose.
+        headers['Icy-MetaData'] = '1';
+    }
+    let current = url;
+    let hops = 0;
+    const step = () => {
+        const mod = new URL(current).protocol === 'https:' ? https : http;
+        const req = mod.get(current, { headers, timeout: timeoutMs }, (up) => {
+            if ([301, 302, 303, 307, 308].includes(up.statusCode) && up.headers.location && hops < 3) {
+                up.resume();
+                try {
+                    current = new URL(up.headers.location, current).toString();
+                } catch (e) { reject(new Error('bad redirect')); return; }
+                hops += 1;
+                step();
+                return;
+            }
+            resolve({ up, finalUrl: current });
+        });
+        req.on('timeout', () => req.destroy(new Error('upstream timeout')));
+        req.on('error', reject);
+    };
+    step();
+});
+
+// Sniff a live response: de-interleave ICY metadata (if any), capture the
+// first StreamTitle and up to 16 KB of clean audio for frame parsing.
+const sniffStream = (up, metaint) => new Promise((resolve) => {
+    const out = { title: null, audio: Buffer.alloc(0) };
+    let audioTotal = 0;
+    let state = metaint > 0 ? 'audio' : 'raw';
+    let need = metaint;
+    let metaNeed = 0;
+    let metaBuf = Buffer.alloc(0);
+    let finished = false;
+    const finish = () => {
+        if (finished) return;
+        finished = true;
+        clearTimeout(timer);
+        try { up.removeListener('data', onData); } catch (e) { /* noop */ }
+        resolve(out);
+    };
+    const timer = setTimeout(finish, 8000);
+    const haveEnough = () => audioTotal >= 8192 && (metaint === 0 || out.title !== null);
+    const onData = (chunk) => {
+        let off = 0;
+        while (off < chunk.length) {
+            if (state === 'audio') {
+                const take = Math.min(need, chunk.length - off);
+                if (out.audio.length < 16384) out.audio = Buffer.concat([out.audio, chunk.slice(off, off + take)]);
+                off += take;
+                audioTotal += take;
+                need -= take;
+                if (need === 0) state = 'len';
+            } else if (state === 'len') {
+                const n = chunk[off] * 16;
+                off += 1;
+                if (n === 0) { state = 'audio'; need = metaint; }
+                else { state = 'meta'; metaNeed = n; metaBuf = Buffer.alloc(0); }
+            } else if (state === 'meta') {
+                const take = Math.min(metaNeed, chunk.length - off);
+                metaBuf = Buffer.concat([metaBuf, chunk.slice(off, off + take)]);
+                off += take;
+                metaNeed -= take;
+                if (metaNeed === 0) {
+                    const m = metaBuf.toString('utf8').replace(/\0+$/, '').match(/StreamTitle='([^']*)'/);
+                    if (m && m[1]) out.title = m[1];
+                    state = 'audio';
+                    need = metaint;
+                }
+            } else {
+                if (out.audio.length < 16384) out.audio = Buffer.concat([out.audio, chunk]);
+                audioTotal += chunk.length - off;
+                off = chunk.length;
+            }
+        }
+        if (haveEnough() || audioTotal >= 131072) finish();
+    };
+    up.on('data', onData);
+    up.on('error', finish);
+    up.on('end', finish);
+});
+
+// Parse the first MP3 or ADTS/AAC frame header: real sample rate + channels.
+const parseAudioFrame = (buf) => {
+    const SFR = [96000, 88200, 64000, 48000, 44100, 32000, 24000, 22050, 16000, 12000, 11025, 8000, 7350];
+    const MP3SR = { 3: [44100, 48000, 32000], 2: [22050, 24000, 16000], 0: [11025, 12000, 8000] };
+    for (let i = 0; i + 4 < buf.length; i++) {
+        if (buf[i] !== 0xFF || (buf[i + 1] & 0xE0) !== 0xE0) continue;
+        const b1 = buf[i + 1];
+        if ((b1 & 0xF0) === 0xF0 && (b1 & 0x06) === 0 && i + 7 < buf.length) {
+            const sfi = (buf[i + 2] & 0x3C) >> 2;
+            const ch = ((buf[i + 2] & 0x01) << 2) | ((buf[i + 3] & 0xC0) >> 6);
+            if (sfi <= 12 && ch >= 1 && ch <= 7) {
+                const prof = (buf[i + 2] & 0xC0) >> 6;
+                return { container: 'ADTS', codec: prof === 1 ? 'AAC-LC' : 'AAC', sampleRate: SFR[sfi], channels: ch };
+            }
+        }
+        const ver = (b1 & 0x18) >> 3;
+        const layer = (b1 & 0x06) >> 1;
+        if (ver !== 1 && layer !== 0 && MP3SR[ver]) {
+            const srIdx = (buf[i + 2] & 0x0C) >> 2;
+            if (srIdx <= 2) {
+                const mode = (buf[i + 3] & 0xC0) >> 6;
+                return { container: 'MP3', codec: 'MP3', sampleRate: MP3SR[ver][srIdx], channels: mode === 3 ? 1 : 2 };
+            }
+        }
+    }
+    return null;
+};
+
+const previewAuth = (req, res, next) => {
+    const token = req.headers['x-auth-token'] || req.query.token;
+    if (token && token === SECRET_TOKEN) return next();
+    return res.status(401).json({ success: false, message: 'Unauthorized: Invalid or missing token' });
+};
+
+// Geolocation of the stream server IP (powers the cover globe map).
+// Cache per hostname, 24 h. Unknown (private IP, DNS/geo fail) -> {unknown:true}.
+const geoCache = new Map();
+const GEO_TTL = 24 * 3600 * 1000;
+const lookupGeo = (ip) => new Promise((resolve) => {
+    const q = `http://ip-api.com/json/${encodeURIComponent(ip)}?fields=status,message,country,countryCode,city,lat,lon,query`;
+    http.get(q, { timeout: 8000 }, (up) => {
+        let body = '';
+        up.on('data', (c) => { body += c; });
+        up.on('end', () => {
+            try {
+                const j = JSON.parse(body);
+                if (j.status === 'success' && typeof j.lat === 'number' && typeof j.lon === 'number') {
+                    return resolve({ ip: j.query || ip, country: j.country || null, countryCode: j.countryCode || null, city: j.city || null, lat: j.lat, lon: j.lon });
+                }
+                resolve({ unknown: true, reason: j.message || 'geo failed' });
+            } catch (e) { resolve({ unknown: true, reason: 'bad geo response' }); }
+        });
+    }).on('timeout', function () { this.destroy(new Error('geo timeout')); })
+      .on('error', () => resolve({ unknown: true, reason: 'geo unreachable' }));
+});
+apiRouter.get('/geo', async (req, res) => {
+    const gate = await isPublicHttpUrl(req.query.url || '');
+    if (!gate.ok) return res.status(422).json({ success: false, message: gate.reason });
+    let host;
+    try { host = new URL(gate.url).hostname.toLowerCase(); }
+    catch (e) { return res.status(422).json({ success: false, message: 'bad url' }); }
+    const hit = geoCache.get(host);
+    if (hit && Date.now() - hit.ts < GEO_TTL) return res.json({ success: true, data: hit.data, cached: true });
+    try {
+        const addrs = await dns.lookup(host, { all: true });
+        const v4 = addrs.find((a) => a.family === 4);
+        const ip = (v4 && v4.address) || (addrs[0] && addrs[0].address);
+        if (!ip) return res.json({ success: true, data: { unknown: true, reason: 'dns failed' } });
+        const g = await lookupGeo(ip);
+        const data = g.unknown ? { unknown: true, reason: g.reason, ip } : g;
+        geoCache.set(host, { ts: Date.now(), data });
+        return res.json({ success: true, data });
+    } catch (e) { return res.json({ success: true, data: { unknown: true, reason: 'dns failed' } }); }
+});
+
+// Metadata probe: headers + codec guess + first StreamTitle + measured kbps.
+apiRouter.get('/probe', async (req, res) => {
+    const gate = await isPublicHttpUrl(req.query.url || '');
+    if (!gate.ok) return res.status(422).json({ success: false, message: gate.reason });
+    const t0 = Date.now();
+    let up = null;
+    try {
+        ({ up } = await openPreviewUpstream(gate.url, 10000, true));
+        if (up.statusCode !== 200 && up.statusCode !== 206) {
+            const code = up.statusCode;
+            up.resume();
+            return res.status(502).json({ success: false, message: 'upstream ' + code });
+        }
+        const h = up.headers || {};
+        const ct = String(h['content-type'] || '');
+        let codec = null;
+        if (/mpeg|mp3/i.test(ct)) codec = 'MP3';
+        else if (/aac|mp4/i.test(ct)) codec = 'AAC';
+        else if (/ogg|opus/i.test(ct)) codec = 'Ogg';
+        else if (/flac/i.test(ct)) codec = 'FLAC';
+        else if (/wav/i.test(ct)) codec = 'WAV';
+        const metaint = parseInt(h['icy-metaint'], 10);
+        const sniffed = await sniffStream(up, Number.isNaN(metaint) ? 0 : metaint);
+        const title = sniffed.title;
+        const fmt = parseAudioFrame(sniffed.audio);
+        const ms = Math.max(Date.now() - t0, 1);
+        const sockBytes = (up.socket && up.socket.bytesRead) || 0;
+        const kbps = Math.round(sockBytes * 8 / ms * 10) / 10;
+        const out = {
+            success: true,
+            data: {
+                url: gate.url,
+                httpStatus: up.statusCode,
+                contentType: ct || null,
+                codec,
+                measuredKbps: kbps || null,
+                sampleRate: fmt ? fmt.sampleRate : null,
+                channels: fmt ? fmt.channels : null,
+                icyUrl: h['icy-url'] || null,
+                icyName: h['icy-name'] || null,
+                icyGenre: h['icy-genre'] || null,
+                icyBr: h['icy-br'] ? parseInt(h['icy-br'], 10) || null : null,
+                icyDescription: h['icy-description'] || null,
+                streamTitle: title || null,
+            },
+        };
+        try { up.destroy(); } catch (e) { /* noop */ }
+        res.json(out);
+    } catch (err) {
+        try { up && up.destroy(); } catch (e) { /* noop */ }
+        res.status(502).json({ success: false, message: String(err.message || err) });
+    }
+});
+
+// Same-origin audio pipe for browser preview (query-token auth: <audio> can't set headers).
+apiRouter.get('/preview', previewAuth, async (req, res) => {
+    const gate = await isPublicHttpUrl(req.query.url || '');
+    if (!gate.ok) return res.status(422).json({ success: false, message: gate.reason });
+    let up = null;
+    try {
+        ({ up } = await openPreviewUpstream(gate.url, 10000, false));
+        if (up.statusCode !== 200) {
+            const code = up.statusCode;
+            up.resume();
+            return res.status(502).type('text/plain').send('upstream unavailable');
+        }
+        res.status(200);
+        res.set('Content-Type', up.headers['content-type'] || 'audio/mpeg');
+        for (const [k, v] of Object.entries(up.headers)) {
+            if (k.startsWith('icy-') && k !== 'icy-metaint') res.set(k, v);
+        }
+        res.set('Accept-Ranges', 'none');
+        res.set('Cache-Control', 'no-store');
+        // Same stall watchdog as the audio relay: re-open upstream with a
+        // fresh token on the SAME response (up to 3 resumes), then fail fast.
+        let cur = up;
+        let resumes = 0;
+        let alive = true;
+        let resuming = false;
+        let lastData = Date.now();
+        const detach = () => {
+            try { cur.unpipe(res); cur.removeAllListeners(); cur.destroy(); } catch (e) { /* noop */ }
+        };
+        const finish = () => {
+            alive = false;
+            resuming = false;
+            clearInterval(watch);
+            detach();
+            try { res.end(); } catch (e) { /* noop */ }
+        };
+        const attach = () => {
+            resuming = false;
+            cur.on('data', () => { lastData = Date.now(); });
+            cur.on('error', () => { if (alive) resumeOrEnd(); });
+            cur.on('end', () => { if (alive) resumeOrEnd(); });
+            cur.pipe(res, { end: false });
+        };
+        const resumeOrEnd = async () => {
+            if (!alive || resuming) return;
+            resuming = true;
+            if (resumes >= 3) {
+                console.error(`Preview [${gate.url.slice(0, 60)}]: still stalled, giving up`);
+                finish();
+                return;
+            }
+            resumes += 1;
+            console.error(`Preview [${gate.url.slice(0, 60)}]: stall detected, resume #${resumes}`);
+            detach();
+            try {
+                const r = await openPreviewUpstream(gate.url, 10000, false);
+                if (!alive) { try { r.up.resume(); } catch (e) { /* noop */ } return; }
+                if (r.up.statusCode !== 200) {
+                    try { r.up.resume(); } catch (e) { /* noop */ }
+                    finish();
+                    return;
+                }
+                cur = r.up;
+                lastData = Date.now();
+                attach();
+            } catch (err) {
+                console.error(`Preview resume failed: ${err.message}`);
+                finish();
+            }
+        };
+        req.on('close', () => {
+            alive = false;
+            clearInterval(watch);
+            detach();
+        });
+        const watch = setInterval(() => {
+            if (!alive) { clearInterval(watch); return; }
+            if (Date.now() - lastData > 10000) resumeOrEnd();
+        }, 5000);
+        attach();
+    } catch (err) {
+        console.error('Preview failed:', err.message);
+        try { up && up.destroy(); } catch (e) { /* noop */ }
+        if (!res.headersSent) {
+            res.status(502).type('text/plain').send('preview failed');
+        } else {
+            try { res.end(); } catch (e) { /* noop */ }
+        }
+    }
+});
+
 app.get('/audio/:name', async (req, res) => {
     const upstream = loadRelays()[req.params.name];
     if (typeof upstream !== 'string' || !/^https?:\/\/.+/.test(upstream)) {
@@ -561,9 +1559,70 @@ app.get('/audio/:name', async (req, res) => {
             if (k.startsWith('icy-')) res.set(k, v);
         }
         res.set('Accept-Ranges', 'none');
-        up.on('error', () => { try { res.end(); } catch (e) { /* noop */ } });
-        req.on('close', () => { try { up.destroy(); } catch (e) { /* noop */ } });
-        up.pipe(res);
+        // Resilient piping: Zeno sometimes stalls mid-stream (no bytes, no
+        // error, no close). Watchdog re-opens the upstream with a fresh token
+        // on the SAME client response (up to 3 resumes); then ends the
+        // response so the client fails fast instead of hanging forever.
+        let cur = up;
+        let resumes = 0;
+        let alive = true;
+        let resuming = false;
+        let lastData = Date.now();
+        const detach = () => {
+            try { cur.unpipe(res); cur.removeAllListeners(); cur.destroy(); } catch (e) { /* noop */ }
+        };
+        const finish = () => {
+            alive = false;
+            resuming = false;
+            clearInterval(watch);
+            detach();
+            try { res.end(); } catch (e) { /* noop */ }
+        };
+        const attach = () => {
+            resuming = false;
+            cur.on('data', () => { lastData = Date.now(); });
+            cur.on('error', () => { if (alive) resumeOrEnd(); });
+            cur.on('end', () => { if (alive) resumeOrEnd(); });
+            cur.pipe(res, { end: false });
+        };
+        const resumeOrEnd = async () => {
+            if (!alive || resuming) return;
+            resuming = true;
+            if (resumes >= 3) {
+                console.error(`Audio relay [${req.params.name}]: still stalled, giving up`);
+                finish();
+                return;
+            }
+            resumes += 1;
+            console.error(`Audio relay [${req.params.name}]: stall detected, resume #${resumes}`);
+            detach();
+            try {
+                const r = await openUpstream(upstream, 8000, 2);
+                if (!alive) { try { r.resume(); } catch (e) { /* noop */ } return; }
+                if (r.statusCode !== 200) {
+                    console.error(`Audio relay [${req.params.name}]: resume got upstream ${r.statusCode}`);
+                    try { r.resume(); } catch (e) { /* noop */ }
+                    finish();
+                    return;
+                }
+                cur = r;
+                lastData = Date.now();
+                attach();
+            } catch (err) {
+                console.error(`Audio relay [${req.params.name}]: resume failed: ${err.message}`);
+                finish();
+            }
+        };
+        req.on('close', () => {
+            alive = false;
+            clearInterval(watch);
+            detach();
+        });
+        const watch = setInterval(() => {
+            if (!alive) { clearInterval(watch); return; }
+            if (Date.now() - lastData > 10000) resumeOrEnd();
+        }, 5000);
+        attach();
     } catch (err) {
         console.error(`Audio relay [${req.params.name}] failed:`, err.message);
         if (!res.headersSent) {
@@ -643,6 +1702,8 @@ wss.on('connection', (ws) => {
 
 // --- Server Start ---
 loadStations();
+loadStats();
+loadAlarm();
 server.listen(port, '0.0.0.0', () => {
     console.log(`Server listening on http://0.0.0.0:${port}`);
     console.log(`Access the web interface at: http://YOUR_SERVER_IP:${port}`);

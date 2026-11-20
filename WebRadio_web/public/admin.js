@@ -15,9 +15,182 @@ document.addEventListener('DOMContentLoaded', () => {
     const exportBtn = document.getElementById('btn-export');
     const reloadBtn = document.getElementById('btn-reload');
     const importFile = document.getElementById('import-file');
+    const audioEl = document.getElementById('preview-audio');
+    const panelStateEl = document.getElementById('preview-state');
+    const panelStationEl = document.getElementById('preview-station');
+    const panelCodecEl = document.getElementById('preview-codec');
+    const panelTrackEl = document.getElementById('preview-track');
+    const panelExtraEl = document.getElementById('preview-extra');
+    const panelCoverEl = document.getElementById('preview-cover');
+    const coverNoiseEl = document.getElementById('cover-noise');
+    const coverTrackEl = document.getElementById('cover-track');
+    const mapCanvasEl = document.getElementById('cover-map');
+    const globeBtn = document.getElementById('cover-globe-btn');
+
+    // Cover appearance FX: genre picks the world (CRT / glitch / Moon shot).
+    const COVER_FX = ['fx-tv', 'fx-glitch', 'fx-moon'];
+    let coverFxTimer = 0;
+    const coverFxForGenre = (genre) => {
+        const g = String(genre || '').toLowerCase();
+        if (/electro|techno|dance|house|trance|edm|synth|industrial|ebm|rave|dnb|dubstep/.test(g)) return 'fx-glitch';
+        if (/jazz|classic|ambient|chill|lofi|lo-fi|lounge|acoustic|folk|blues|soul|opera|symph/.test(g)) return 'fx-tv';
+        return 'fx-moon';
+    };
+    const clearCoverFx = () => {
+        clearTimeout(coverFxTimer);
+        panelCoverEl.classList.remove('fx-tv', 'fx-glitch', 'fx-moon', 'fx-dropout');
+        coverNoiseEl.classList.remove('on');
+        coverTrackEl.classList.remove('on');
+    };
+    const triggerCoverFx = (genre) => {
+        panelCoverEl.classList.remove('fx-tv', 'fx-glitch', 'fx-moon');
+        void panelCoverEl.offsetWidth;
+        panelCoverEl.classList.add(coverFxForGenre(genre));
+        coverNoiseEl.classList.add('on');
+        clearTimeout(coverFxTimer);
+        coverFxTimer = setTimeout(() => {
+            panelCoverEl.classList.remove('fx-tv', 'fx-glitch', 'fx-moon');
+            if (!panelCoverEl.classList.contains('fx-dropout')) coverNoiseEl.classList.remove('on');
+        }, 3000);
+    };
+    const applyCover = (url, genre) => {
+        const pre = new Image();
+        pre.onload = () => {
+            stopCoverWait();
+            coverNoiseEl.classList.remove('dark');
+            coverCardEl.classList.remove('nosignal');
+            hasCoverArt = true;
+            panelCoverEl.src = url;
+            if (!mapPinned) setCoverView('cover');
+            triggerCoverFx(genre);
+        };
+        pre.onerror = () => { /* keep current cover */ };
+        pre.src = url;
+    };
+    const showDropoutFx = (on) => {
+        if (on) {
+            panelCoverEl.classList.add('fx-dropout');
+            coverNoiseEl.classList.add('on');
+            coverTrackEl.classList.add('on');
+        } else {
+            panelCoverEl.classList.remove('fx-dropout');
+            coverTrackEl.classList.remove('on');
+            if (!COVER_FX.some((c) => panelCoverEl.classList.contains(c))) coverNoiseEl.classList.remove('on');
+        }
+    };
+
+    // Cover wait: old image dissolves into noise at once, then black + faint noise.
+    let coverWaiting = false;
+    let coverWaitTimers = [];
+    const startCoverWait = () => {
+        stopCoverWait();
+        coverWaiting = true;
+        coverCardEl.classList.remove('nosignal');
+        coverNoiseEl.classList.remove('snow', 'dark');
+        void coverNoiseEl.offsetWidth;
+        coverCardEl.classList.add('nosignal');
+        coverNoiseEl.classList.add('ramp-fast');
+        coverWaitTimers.push(setTimeout(() => {
+            if (!coverWaiting) return;
+            coverNoiseEl.classList.remove('ramp-fast');
+            coverNoiseEl.classList.add('snow');
+        }, 2000));
+        coverWaitTimers.push(setTimeout(() => {
+            if (!coverWaiting) return;
+            coverNoiseEl.classList.remove('snow');
+            coverNoiseEl.classList.add('dark');
+        }, 4500));
+    };
+    const stopCoverWait = () => {
+        coverWaiting = false;
+        coverWaitTimers.forEach(clearTimeout);
+        coverWaitTimers = [];
+        coverNoiseEl.classList.remove('ramp-fast', 'snow');
+    };
+
+    // Cover card views: album art vs server geo map.
+    let coverView = 'cover';
+    let mapPinned = false;
+    let hasCoverArt = false;
+    const updateMapNoise = () => {
+        coverNoiseEl.classList.toggle('hud', coverView === 'map' && playingIndex !== -1);
+    };
+    const setCoverView = (which) => {
+        coverView = which;
+        const isMap = which === 'map';
+        panelCoverEl.hidden = isMap;
+        mapCanvasEl.hidden = !isMap;
+        globeBtn.classList.toggle('active', isMap);
+        if (isMap) {
+            coverNoiseEl.classList.remove('on', 'ramp-fast', 'snow');
+            CoverMap.resize();
+            CoverMap.start();
+        } else {
+            CoverMap.stop();
+        }
+        updateMapNoise();
+    };
+    const noteNoCover = () => {
+        hasCoverArt = false;
+        if (!mapPinned && playingIndex !== -1) setCoverView('map');
+    };
+    const fetchStationGeo = (url, index) => {
+        if (coverView === 'map') CoverMap.acquiring();
+        const token = getToken();
+        if (!token) return;
+        fetch(`${API_BASE_PATH}/geo?url=${encodeURIComponent(url)}`, {
+            headers: { 'X-Auth-Token': token }
+        })
+            .then((res) => res.json().catch(() => ({})))
+            .then((json) => {
+                if (index !== playingIndex) return;
+                const d = json && json.data;
+                if (json && json.success && d && !d.unknown && typeof d.lat === 'number' && typeof d.lon === 'number') {
+                    CoverMap.flyTo(d.lat, d.lon, { city: d.city, country: d.country, ip: d.ip });
+                } else {
+                    CoverMap.showUnknown();
+                }
+            })
+            .catch(() => { if (index === playingIndex) CoverMap.showUnknown(); });
+    };
+    globeBtn.addEventListener('click', () => {
+        if (coverView === 'map') {
+            mapPinned = false;
+            if (hasCoverArt) setCoverView('cover');
+        } else {
+            mapPinned = true;
+            setCoverView('map');
+        }
+    });
+    CoverMap.init(mapCanvasEl);
+    const panelStopBtn = document.getElementById('preview-stop');
+    const panelPrevBtn = document.getElementById('preview-prev');
+    const panelNextBtn = document.getElementById('preview-next');
+    const panelVolEl = document.getElementById('preview-vol');
+    const panelCanvasEl = document.getElementById('preview-spectrum');
+
+    // Cover card stays square with side = right column height.
+    const coverCardEl = document.querySelector('.card-cover');
+    const rightColEl = document.querySelector('.preview-right');
+    const fitCover = () => {
+        if (!coverCardEl || !rightColEl) return;
+        if (window.innerWidth <= 700) { coverCardEl.style.width = ''; CoverMap.resize(); return; }
+        const h = Math.round(rightColEl.getBoundingClientRect().height);
+        if (h > 60 && Math.abs(h - coverCardEl.getBoundingClientRect().width) > 1) {
+            coverCardEl.style.width = `${h}px`;
+        }
+        CoverMap.resize();
+    };
+    if (window.ResizeObserver && rightColEl) {
+        new ResizeObserver(() => fitCover()).observe(rightColEl);
+    }
+    window.addEventListener('resize', fitCover);
 
     // --- STATE ---
     let stations = []; // working copy: [{name, url, genre}]
+    let playingIndex = -1;
+    let probeTimer = null;
+    let lastProbeUrl = '';
 
     // --- TOKEN ---
     const getToken = () => {
@@ -128,11 +301,28 @@ document.addEventListener('DOMContentLoaded', () => {
             delBtn.title = 'Delete';
             delBtn.addEventListener('click', () => remove(index));
 
-            actionsTd.append(upBtn, downBtn, delBtn);
+            const playBtn = document.createElement('button');
+            playBtn.className = 'icon-btn';
+            const isPlaying = index === playingIndex;
+            playBtn.textContent = isPlaying ? '\u25a0' : '\u25b6';
+            playBtn.title = isPlaying ? 'Stop preview' : 'Play preview in browser';
+            playBtn.addEventListener('click', () => {
+                if (index === playingIndex) stopPlayback();
+                else playStation(index);
+            });
+
+            actionsTd.append(playBtn, upBtn, downBtn, delBtn);
+            if (isPlaying) tr.classList.add('playing');
             tr.appendChild(actionsTd);
 
             tbody.appendChild(tr);
         });
+        const hasStations = stations.length > 0;
+        panelStopBtn.textContent = playingIndex === -1 ? '▶' : '⏹';
+        panelStopBtn.classList.toggle('danger', playingIndex !== -1);
+        panelStopBtn.disabled = !hasStations;
+        panelPrevBtn.disabled = !hasStations;
+        panelNextBtn.disabled = !hasStations;
         updateGenres();
     };
 
@@ -196,6 +386,317 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
+    const escHtml = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    // --- BROWSER PREVIEW (plays through the server pipe, same-origin) ---
+    const setPanel = (state, station, codec, track, coverUrl, extra) => {
+        panelStateEl.textContent = state;
+        panelStateEl.className = 'preview-state'
+            + (state === 'Loading...' ? ' loading' : '')
+            + (state === 'Error' ? ' error' : '');
+        panelStationEl.textContent = station || '—';
+        panelStationEl.title = station || '';
+        panelCodecEl.textContent = codec || '—';
+        panelTrackEl.textContent = track || '—';
+        panelTrackEl.title = track || '';
+        if (extra !== undefined) {
+            if (extra) panelExtraEl.innerHTML = extra;
+            else panelExtraEl.textContent = '—';
+        }
+        if (coverUrl !== undefined) {
+            panelCoverEl.src = coverUrl || 'radio.svg';
+        }
+        panelStopBtn.disabled = (playingIndex === -1);
+    };
+
+    const fetchCover = async (streamTitle) => {
+        if (!streamTitle || !streamTitle.includes('-')) return null;
+        const dash = streamTitle.indexOf(' - ');
+        const q = dash > 0 ? `${streamTitle.slice(0, dash)} ${streamTitle.slice(dash + 3)}` : streamTitle;
+        try {
+            const res = await fetch(`https://itunes.apple.com/search?term=${encodeURIComponent(q)}&media=music&entity=song&limit=1`);
+            if (!res.ok) return null;
+            const json = await res.json();
+            const art = json.results && json.results[0] && json.results[0].artworkUrl100;
+            return art ? art.replace('100x100', '300x300') : null;
+        } catch (e) {
+            return null;
+        }
+    };
+
+    const probeStation = async (url, listName) => {
+        const token = getToken();
+        if (!token || playingIndex === -1) return;
+        const myIndex = playingIndex;
+        try {
+            const res = await fetch(`${API_BASE_PATH}/probe?url=${encodeURIComponent(url)}`, {
+                headers: { 'X-Auth-Token': token }
+            });
+            const json = await res.json().catch(() => ({}));
+            if (!res.ok || !json.success) throw new Error((json && json.message) || `HTTP ${res.status}`);
+            const d = json.data;
+            if (myIndex !== playingIndex) return;
+            const stationLabel = d.icyName || listName || d.url;
+            const bitrate = d.icyBr ? `${d.icyBr} kbps` : (d.measuredKbps ? `~${Math.round(d.measuredKbps)} kbps` : null);
+            const ch = d.channels === 1 ? 'Mono' : (d.channels === 2 ? 'Stereo' : (d.channels ? `${d.channels} ch` : null));
+            lastStream = { codec: d.codec || 'audio', bitrate, srHz: d.sampleRate || 0, ch };
+            const extraParts = [d.icyGenre, d.icyDescription].filter(Boolean).map(escHtml);
+            if (d.icyUrl && /^https?:\/\//i.test(d.icyUrl)) {
+                extraParts.push(`<a href="${escHtml(d.icyUrl)}" target="_blank" rel="noopener">site</a>`);
+            }
+            const extraHtml = extraParts.join(' · ');
+            setPanel('Playing', stationLabel, '', d.streamTitle || '(no track info)', undefined, extraHtml);
+            refreshCodecLine();
+            if (d.streamTitle) {
+                const genre = (stations[myIndex] && stations[myIndex].genre) || '';
+                fetchCover(d.streamTitle).then((cover) => {
+                    if (!cover || myIndex !== playingIndex) {
+                        if (myIndex === playingIndex) noteNoCover();
+                        return;
+                    }
+                    setPanel('Playing', stationLabel, '', d.streamTitle, undefined, extraHtml);
+                    refreshCodecLine();
+                    applyCover(cover, genre);
+                });
+            } else {
+                noteNoCover();
+            }
+        } catch (err) {
+            console.warn('Probe failed:', err.message);
+        }
+    };
+
+    const stopProbeLoop = () => {
+        if (probeTimer) { clearInterval(probeTimer); probeTimer = null; }
+    };
+
+    const stopPlayback = () => {
+        stopProbeLoop();
+        try { audioEl.pause(); } catch (e) { /* noop */ }
+        audioEl.removeAttribute('src');
+        try { audioEl.load(); } catch (e) { /* noop */ }
+        playingIndex = -1;
+        lastProbeUrl = '';
+        lastStream = null;
+        setPanel('Stopped', '—', '—', '—', null, '');
+        clearCoverFx();
+        stopCoverWait();
+        coverNoiseEl.classList.remove('dark');
+        coverCardEl.classList.remove('nosignal');
+        CoverMap.setPlaying(false);
+        updateMapNoise();
+        drawSpectrumIdle();
+        render();
+    };
+
+    // --- SPECTRUM ANALYZER (Web Audio API on the same <audio> element) ---
+    let audioCtx = null;
+    let analyserNode = null;
+    let analyserData = null;
+    let spectrumRaf = 0;
+    let peakVals = null;
+    let peakVel = null;
+    let peakLastT = 0;
+    let barVals = null;
+    let bandMax = 0;
+    let lastStream = null;
+    let logMap = null;
+
+    // Logarithmic bar layout: bar i covers [fMin, Nyquist] in equal log steps.
+    const buildLogMap = (n) => {
+        const bins = analyserData.length;
+        const binHz = audioCtx.sampleRate / analyserNode.fftSize;
+        const nyq = audioCtx.sampleRate / 2;
+        const fMin = 40;
+        const map = [];
+        for (let i = 0; i < n; i++) {
+            const f0 = fMin * Math.pow(nyq / fMin, i / n);
+            const f1 = fMin * Math.pow(nyq / fMin, (i + 1) / n);
+            const b0 = Math.max(0, Math.floor(f0 / binHz));
+            const b1 = Math.min(bins - 1, Math.max(b0, Math.ceil(f1 / binHz) - 1));
+            map.push([b0, b1, f1]);
+        }
+        return map;
+    };
+
+    const ensureAudioGraph = () => {
+        if (!audioCtx) {
+            const AC = window.AudioContext || window.webkitAudioContext;
+            if (!AC) return false;
+            audioCtx = new AC();
+            analyserNode = audioCtx.createAnalyser();
+            analyserNode.fftSize = tune.fft;
+            analyserNode.minDecibels = tune.dbMin;
+            analyserNode.maxDecibels = tune.dbMax;
+            analyserNode.smoothingTimeConstant = 0.8;
+            const srcNode = audioCtx.createMediaElementSource(audioEl);
+            srcNode.connect(analyserNode);
+            analyserNode.connect(audioCtx.destination);
+            analyserData = new Uint8Array(analyserNode.frequencyBinCount);
+        }
+        if (audioCtx.state === 'suspended') audioCtx.resume().catch(() => {});
+        return true;
+    };
+
+    const fitCanvas = () => {
+        const r = panelCanvasEl.getBoundingClientRect();
+        const w = Math.max(80, Math.round(r.width));
+        const h = Math.max(28, Math.round(r.height));
+        if (panelCanvasEl.width !== w * 2) { panelCanvasEl.width = w * 2; panelCanvasEl.height = h * 2; }
+    };
+
+    const drawSpectrumIdle = () => {
+        const ctx2d = panelCanvasEl.getContext('2d');
+        ctx2d.clearRect(0, 0, panelCanvasEl.width, panelCanvasEl.height);
+    };
+
+    const fmtKHz = (hz) => {
+        if (!hz || hz <= 0) return '—';
+        return hz >= 1000 ? `${String(parseFloat((hz / 1000).toFixed(1))).replace('.', ',')} кГц` : `${Math.round(hz)} Гц`;
+    };
+
+    const refreshCodecLine = () => {
+        if (!lastStream) return;
+        let srPart = lastStream.srHz ? fmtKHz(lastStream.srHz) : null;
+        if (lastStream.srHz && bandMax > 0) srPart += ` (${fmtKHz(bandMax)} макс)`;
+        panelCodecEl.textContent = [lastStream.codec, lastStream.bitrate, srPart, lastStream.ch].filter(Boolean).join(' · ');
+    };
+
+    const drawSpectrum = () => {
+        spectrumRaf = requestAnimationFrame(drawSpectrum);
+        if (!analyserNode || playingIndex === -1) return;
+        analyserNode.getByteFrequencyData(analyserData);
+        const ctx2d = panelCanvasEl.getContext('2d');
+        const W = panelCanvasEl.width;
+        const H = panelCanvasEl.height;
+        const n = tune.bars;
+        if (!peakVals || peakVals.length !== n) {
+            peakVals = new Float32Array(n);
+            peakVel = new Float32Array(n);
+            barVals = new Float32Array(n);
+            peakLastT = performance.now();
+            bandMax = 0;
+            logMap = buildLogMap(n);
+        }
+        const nowT = performance.now();
+        const dt = Math.min(0.1, Math.max(0.001, (nowT - peakLastT) / 1000));
+        peakLastT = nowT;
+        // Gravity for the peak caps, from the slider: full-scale fall in tune.grav seconds.
+        const GRAV = (2 * H) / (tune.grav * tune.grav);
+        const bw = W / n;
+        const capH = Math.max(2, H * 0.03);
+        let topBin = -1;
+        ctx2d.clearRect(0, 0, W, H);
+        for (let i = 0; i < n; i++) {
+            const lb0 = logMap[i][0];
+            const lb1 = logMap[i][1];
+            let v = 0;
+            for (let j = lb0; j <= lb1; j++) v = Math.max(v, analyserData[j] || 0);
+            if (v >= 12) topBin = i;
+            const target = (v / 255) * H;
+            let bh = barVals[i];
+            if (tune.atk > 0 && target > bh) bh = Math.min(target, bh + (H * dt) / (tune.atk / 1000));
+            else if (tune.rel > 0 && target < bh) bh = Math.max(target, bh - (H * dt) / (tune.rel / 1000));
+            else bh = target;
+            barVals[i] = bh;
+            const h = Math.max(2, bh);
+            if (h >= peakVals[i]) {
+                peakVals[i] = h;
+                peakVel[i] = 0;
+            } else {
+                peakVel[i] += GRAV * dt;
+                peakVals[i] = Math.max(0, peakVals[i] - peakVel[i] * dt);
+            }
+            const g = ctx2d.createLinearGradient(0, H - h, 0, H);
+            g.addColorStop(0, '#7ddb9b');
+            g.addColorStop(1, '#1d5c33');
+            ctx2d.fillStyle = g;
+            ctx2d.fillRect(i * bw + 1, H - h, Math.max(1, bw - 2), h);
+            ctx2d.fillStyle = '#f2c94d';
+            ctx2d.fillRect(i * bw + 1, Math.min(H - capH, H - peakVals[i]), Math.max(1, bw - 2), capH);
+        }
+        const occHz = topBin >= 0 ? logMap[topBin][2] : 0;
+        if (occHz > bandMax) {
+            bandMax = occHz;
+            refreshCodecLine();
+        }
+    };
+
+    const rememberLastPlayed = () => {
+        try {
+            const st = stations[playingIndex];
+            if (st && st.id !== undefined) localStorage.setItem('webradio_admin_last', String(st.id));
+        } catch (e) { /* noop */ }
+    };
+    const resolveStartIndex = () => {
+        if (!stations.length) return -1;
+        if (playingIndex >= 0 && playingIndex < stations.length) return playingIndex;
+        try {
+            const id = localStorage.getItem('webradio_admin_last');
+            const i = stations.findIndex((s) => String(s.id) === String(id));
+            if (i >= 0) return i;
+        } catch (e) { /* noop */ }
+        return 0;
+    };
+    const stepStation = (dir) => {
+        if (!stations.length) return;
+        const base = resolveStartIndex();
+        if (base === -1) return;
+        playStation((base + dir + stations.length) % stations.length);
+    };
+    const playStation = (index) => {
+        const station = stations[index];
+        const token = getToken();
+        if (!station || !station.url || !token) return;
+        stopProbeLoop();
+        playingIndex = index;
+        rememberLastPlayed();
+        clearCoverFx();
+        startCoverWait();
+        hasCoverArt = false;
+        mapPinned = false;
+        peakVals = null;
+        peakVel = null;
+        bandMax = 0;
+        lastStream = null;
+        const url = station.url.trim();
+        lastProbeUrl = url;
+        setPanel('Loading...', station.name || url, 'connecting…', '—', undefined, '');
+        panelStopBtn.disabled = false;
+        fitCanvas();
+        ensureAudioGraph();
+        if (!spectrumRaf) drawSpectrum();
+        audioEl.src = `${API_BASE_PATH}/preview?url=${encodeURIComponent(url)}&token=${encodeURIComponent(token)}`;
+        audioEl.play().catch((err) => {
+            stopProbeLoop();
+            setPanel('Error', station.name || url, '—', String(err.message || err));
+            playingIndex = -1;
+            render();
+        });
+        probeStation(url, station.name);
+        fetchStationGeo(url, index);
+        probeTimer = setInterval(() => {
+            if (playingIndex === index) probeStation(url, station.name);
+        }, 25000);
+        render();
+    };
+
+    audioEl.addEventListener('error', () => {
+        if (playingIndex === -1) return;
+        const station = stations[playingIndex];
+        setPanel('Error', (station && station.name) || '—', '—', 'stream failed to play (see console)');
+        playingIndex = -1;
+        stopProbeLoop();
+        showDropoutFx(true);
+        render();
+    });
+    audioEl.addEventListener('waiting', () => { if (playingIndex !== -1) showDropoutFx(true); });
+    audioEl.addEventListener('stalled', () => { if (playingIndex !== -1) showDropoutFx(true); });
+    audioEl.addEventListener('playing', () => {
+        showDropoutFx(false);
+        CoverMap.setPlaying(true);
+        updateMapNoise();
+    });
+
     // --- IMPORT / EXPORT ---
     const exportJson = () => {
         const blob = new Blob([JSON.stringify({ stations }, null, 2)], { type: 'application/json' });
@@ -235,6 +736,145 @@ document.addEventListener('DOMContentLoaded', () => {
     saveBtn.addEventListener('click', saveStations);
     exportBtn.addEventListener('click', exportJson);
     reloadBtn.addEventListener('click', loadStations);
+    panelStopBtn.addEventListener('click', () => {
+        if (playingIndex !== -1) stopPlayback();
+        else { const i = resolveStartIndex(); if (i !== -1) playStation(i); }
+    });
+    panelPrevBtn.addEventListener('click', () => stepStation(-1));
+    panelNextBtn.addEventListener('click', () => stepStation(1));
+    panelVolEl.addEventListener('input', () => {
+        audioEl.volume = Math.min(1, Math.max(0, (parseInt(panelVolEl.value, 10) || 0) / 100));
+    });
+    audioEl.volume = (parseInt(panelVolEl.value, 10) || 100) / 100;
+    // --- Spectrum settings popup (persisted in localStorage) ---
+    const FFT_SIZES = [256, 512, 1024, 2048, 4096, 8192];
+    const tune = { grav: 0.6, atk: 0, rel: 0, dbMax: -6, dbMin: -80, fft: 4096, bars: 48 };
+    try {
+        const saved = JSON.parse(localStorage.getItem('webradio_admin_tune') || '{}');
+        if (saved.grav >= 0.2 && saved.grav <= 2) tune.grav = saved.grav;
+        if (saved.atk >= 0 && saved.atk <= 900) tune.atk = saved.atk;
+        if (saved.rel >= 0 && saved.rel <= 900) tune.rel = saved.rel;
+        if (saved.dbMax >= -30 && saved.dbMax <= 0) tune.dbMax = saved.dbMax;
+        if (saved.dbMin >= -120 && saved.dbMin <= -40) tune.dbMin = saved.dbMin;
+        if (FFT_SIZES.includes(saved.fft)) tune.fft = saved.fft;
+        if (saved.bars >= 16 && saved.bars <= 96) tune.bars = saved.bars;
+    } catch (e) { /* noop */ }
+    if (tune.dbMin >= tune.dbMax) tune.dbMin = tune.dbMax - 10;
+    const $ = (id) => document.getElementById(id);
+    const tuneGravEl = $('tune-grav');
+    const tuneAtkEl = $('tune-atk');
+    const tuneRelEl = $('tune-rel');
+    const tuneDbMaxEl = $('tune-dbmax');
+    const tuneDbMinEl = $('tune-dbmin');
+    const tuneFftEl = $('tune-fft');
+    const tuneBarsEl = $('tune-bars');
+    const tuneGravV = $('tune-grav-v');
+    const tuneAtkV = $('tune-atk-v');
+    const tuneRelV = $('tune-rel-v');
+    const tuneDbMaxV = $('tune-dbmax-v');
+    const tuneDbMinV = $('tune-dbmin-v');
+    const tuneFftV = $('tune-fft-v');
+    const tuneBarsV = $('tune-bars-v');
+    const specMenuEl = $('spec-menu');
+    const specMenuBtn = $('spec-menu-btn');
+    const saveTune = () => {
+        try { localStorage.setItem('webradio_admin_tune', JSON.stringify(tune)); } catch (e) { /* noop */ }
+    };
+    const fmtDb = (v) => String(v).replace('-', '−');
+    const applyTuneToInputs = () => {
+        tuneGravEl.value = tune.grav;
+        tuneAtkEl.value = tune.atk;
+        tuneRelEl.value = tune.rel;
+        tuneDbMaxEl.value = tune.dbMax;
+        tuneDbMinEl.value = tune.dbMin;
+        tuneFftEl.value = Math.max(0, FFT_SIZES.indexOf(tune.fft));
+        tuneBarsEl.value = tune.bars;
+        tuneGravV.textContent = `${parseFloat(tune.grav.toFixed(1))} с`;
+        tuneAtkV.textContent = `${tune.atk} мс`;
+        tuneRelV.textContent = `${tune.rel} мс`;
+        tuneDbMaxV.textContent = fmtDb(tune.dbMax);
+        tuneDbMinV.textContent = fmtDb(tune.dbMin);
+        tuneFftV.textContent = `${tune.fft}`;
+        tuneBarsV.textContent = `${tune.bars}`;
+    };
+    const applyDb = () => {
+        if (!analyserNode) return;
+        analyserNode.minDecibels = tune.dbMin;
+        analyserNode.maxDecibels = tune.dbMax;
+    };
+    const reallocSpectrum = () => {
+        if (analyserNode) analyserData = new Uint8Array(analyserNode.frequencyBinCount);
+        peakVals = null;
+    };
+    tuneGravEl.addEventListener('input', () => {
+        tune.grav = parseFloat(tuneGravEl.value) || 0.6;
+        tuneGravV.textContent = `${parseFloat(tune.grav.toFixed(1))} с`;
+        saveTune();
+    });
+    tuneAtkEl.addEventListener('input', () => {
+        tune.atk = parseInt(tuneAtkEl.value, 10) || 0;
+        tuneAtkV.textContent = `${tune.atk} мс`;
+        saveTune();
+    });
+    tuneRelEl.addEventListener('input', () => {
+        tune.rel = parseInt(tuneRelEl.value, 10) || 0;
+        tuneRelV.textContent = `${tune.rel} мс`;
+        saveTune();
+    });
+    tuneDbMaxEl.addEventListener('input', () => {
+        tune.dbMax = parseInt(tuneDbMaxEl.value, 10);
+        if (Number.isNaN(tune.dbMax)) tune.dbMax = -6;
+        if (tune.dbMin >= tune.dbMax) {
+            tune.dbMin = tune.dbMax - 10;
+            tuneDbMinEl.value = tune.dbMin;
+            tuneDbMinV.textContent = fmtDb(tune.dbMin);
+        }
+        tuneDbMaxV.textContent = fmtDb(tune.dbMax);
+        applyDb();
+        saveTune();
+    });
+    tuneDbMinEl.addEventListener('input', () => {
+        tune.dbMin = parseInt(tuneDbMinEl.value, 10);
+        if (Number.isNaN(tune.dbMin)) tune.dbMin = -80;
+        if (tune.dbMin >= tune.dbMax) {
+            tune.dbMax = tune.dbMin + 10;
+            if (tune.dbMax > 0) { tune.dbMax = 0; tune.dbMin = -10; }
+            tuneDbMaxEl.value = tune.dbMax;
+            tuneDbMinEl.value = tune.dbMin;
+            tuneDbMaxV.textContent = fmtDb(tune.dbMax);
+            tuneDbMinV.textContent = fmtDb(tune.dbMin);
+        } else {
+            tuneDbMinV.textContent = fmtDb(tune.dbMin);
+        }
+        applyDb();
+        saveTune();
+    });
+    tuneFftEl.addEventListener('input', () => {
+        const idx = Math.min(FFT_SIZES.length - 1, Math.max(0, parseInt(tuneFftEl.value, 10) || 0));
+        tune.fft = FFT_SIZES[idx];
+        tuneFftV.textContent = `${tune.fft}`;
+        if (analyserNode && analyserNode.fftSize !== tune.fft) {
+            analyserNode.fftSize = tune.fft;
+            reallocSpectrum();
+        }
+        saveTune();
+    });
+    tuneBarsEl.addEventListener('input', () => {
+        tune.bars = parseInt(tuneBarsEl.value, 10) || 48;
+        tuneBarsV.textContent = `${tune.bars}`;
+        reallocSpectrum();
+        saveTune();
+    });
+    specMenuBtn.addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        specMenuEl.hidden = !specMenuEl.hidden;
+    });
+    document.addEventListener('click', (ev) => {
+        if (!specMenuEl.hidden && !specMenuEl.contains(ev.target) && ev.target !== specMenuBtn) {
+            specMenuEl.hidden = true;
+        }
+    });
+    applyTuneToInputs();
 
     loadStations();
 });
