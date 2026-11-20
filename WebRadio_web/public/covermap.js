@@ -165,7 +165,7 @@ window.CoverMap = (() => {
         for (const ring of BORDERS) {
             let prev = null;
             for (let i = 0; i < ring.length; i++) {
-                const p = project(ring[i][0], ring[i][1]);
+                const p = project(ring[i][1], ring[i][0]); // rings store [lon, lat]
                 if (prev && Math.abs(p[0] - prev[0]) < W / 2) {
                     ctx.moveTo(prev[0], prev[1]);
                     ctx.lineTo(p[0], p[1]);
