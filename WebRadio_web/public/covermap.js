@@ -33,6 +33,15 @@ window.CoverMap = (() => {
     }
     let marker = null; // {lat, lon, city, country, ip}
     let unknown = false;
+    let arriveCb = null;
+    let arriveNotified = true;
+    function notifyArrived() {
+        if (arriveNotified) return;
+        arriveNotified = true;
+        const cb = arriveCb;
+        arriveCb = null;
+        if (cb) { try { cb(); } catch (e) { /* noop */ } }
+    }
 
     function project(lat, lon) {
         let dlon = lon - view.lon;
@@ -53,6 +62,7 @@ window.CoverMap = (() => {
     function userHold() {
         pendingFly = null; // user takes over: cancel auto fly-to
         zoomTween = null;
+        notifyArrived(); // don't hold pending transitions hostage
     }
 
     function eventPx(e) {
@@ -335,6 +345,9 @@ window.CoverMap = (() => {
             unknown = false;
             startZoomTween(7, 2.8);
         }
+        if (!arriveNotified && !pendingFly && !zoomTween && Math.abs(view.zoom - target.zoom) < 0.05) {
+            notifyArrived();
+        }
         ctx.fillStyle = mapStyle === 'borders' ? '#07070f' : '#050505';
         ctx.fillRect(0, 0, W, H);
         if (mapStyle === 'borders') {
@@ -357,6 +370,10 @@ window.CoverMap = (() => {
         dbg() { return { view: { ...view }, target: { ...target }, pending: !!pendingFly }; },
         setStyle(s) { if (s === 'dots' || s === 'borders') mapStyle = s; },
         getStyle() { return mapStyle; },
+        whenArrived(cb) {
+            if (arriveNotified) { setTimeout(cb, 0); return; }
+            arriveCb = cb;
+        },
         init(canvasEl) {
             canvas = canvasEl;
             ctx = canvas.getContext('2d');
@@ -393,12 +410,15 @@ window.CoverMap = (() => {
             unknown = false;
             pendingFly = null;
             zoomTween = null;
+            arriveCb = null;
+            arriveNotified = true;
             target.lat = 25;
             target.lon = 0;
             target.zoom = 1;
         },
         flyTo(lat, lon, info) {
             unknown = false;
+            arriveNotified = false;
             const same = marker && Math.abs(marker.lat - lat) < 0.5 && Math.abs(marker.lon - lon) < 0.5;
             if (same) {
                 marker = { lat, lon, city: info.city, country: info.country, ip: info.ip };
@@ -413,6 +433,7 @@ window.CoverMap = (() => {
             pendingFly = null;
             zoomTween = null;
             unknown = true;
+            notifyArrived(); // no zoom-in coming: release pending transitions
             target.lat = 25;
             target.lon = 0;
             target.zoom = 1;

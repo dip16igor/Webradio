@@ -113,6 +113,9 @@ document.addEventListener('DOMContentLoaded', () => {
     let coverView = 'cover';
     let mapPinned = false;
     let hasCoverArt = false;
+    let coverHoldForMap = false;
+    let pendingCover = null;
+    let coverHoldSeq = 0;
     let mapStyle = 'dots';
     try {
         const s = localStorage.getItem('webradio_mapstyle');
@@ -467,12 +470,28 @@ document.addEventListener('DOMContentLoaded', () => {
             if (d.streamTitle) {
                 const genre = (stations[myIndex] && stations[myIndex].genre) || '';
                 fetchCover(d.streamTitle).then((cover) => {
-                    if (!cover || myIndex !== playingIndex) {
-                        if (myIndex === playingIndex) noteNoCover();
-                        return;
-                    }
+                    if (myIndex !== playingIndex) return;
                     setPanel('Playing', stationLabel, '', d.streamTitle, undefined, extraHtml);
                     refreshCodecLine();
+                    if (!cover) { noteNoCover(); return; }
+                    if (coverView === 'map' && coverHoldForMap && !mapPinned) {
+                        // map is open after a switch: hold the cover until the
+                        // fly-to finishes, then transition with the intro FX.
+                        pendingCover = { url: cover, genre, seq: coverHoldSeq, index: myIndex };
+                        CoverMap.whenArrived(() => {
+                            setTimeout(() => {
+                                if (!pendingCover || pendingCover.seq !== coverHoldSeq || pendingCover.index !== playingIndex) return;
+                                const pc = pendingCover;
+                                pendingCover = null;
+                                coverHoldForMap = false;
+                                setCoverView('cover');
+                                applyCover(pc.url, pc.genre);
+                            }, 2000);
+                        });
+                        return;
+                    }
+                    hasCoverArt = true;
+                    if (!mapPinned) setCoverView('cover');
                     applyCover(cover, genre);
                 });
             } else {
@@ -497,6 +516,8 @@ document.addEventListener('DOMContentLoaded', () => {
         lastStream = null;
         setPanel('Stopped', '—', '—', '—', null, '');
         clearCoverFx();
+        pendingCover = null;
+        coverHoldForMap = false;
         stopCoverWait();
         coverNoiseEl.classList.remove('dark');
         coverCardEl.classList.remove('nosignal');
@@ -670,8 +691,11 @@ document.addEventListener('DOMContentLoaded', () => {
         rememberLastPlayed();
         clearCoverFx();
         startCoverWait();
+        coverHoldSeq++;
+        pendingCover = null;
         hasCoverArt = false;
         mapPinned = false;
+        coverHoldForMap = (coverView === 'map');
         peakVals = null;
         peakVel = null;
         bandMax = 0;
