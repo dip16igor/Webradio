@@ -334,8 +334,8 @@ window.CoverMap = (() => {
         }
         view.lat += (target.lat - view.lat) * k;
         view.lon = lerpAngle(view.lon, target.lon, k);
-        if (pendingFly && !zoomTween && view.zoom < 1.15) {
-            // zoomed out: recenter invisibly, then smooth zoom-in
+        if (pendingFly && !zoomTween && view.zoom < 2.15) {
+            // zoomed out to z=2: recenter, then smooth zoom-in
             view.lat = pendingFly.lat;
             view.lon = pendingFly.lon;
             target.lat = pendingFly.lat;
@@ -426,7 +426,7 @@ window.CoverMap = (() => {
                 return;
             }
             pendingFly = { lat, lon, city: info.city, country: info.country, ip: info.ip };
-            target.zoom = 1;
+            target.zoom = 2;
         },
         showUnknown() {
             marker = null;
