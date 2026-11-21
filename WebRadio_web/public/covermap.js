@@ -27,9 +27,17 @@ window.CoverMap = (() => {
     const view = { lat: 25, lon: 0, zoom: 1 };
     const target = { lat: 25, lon: 0, zoom: 1 };
     let pendingFly = null;
-    let zoomTween = null; // {from, to, t, dur}: smooth zoom-in after recenter
+    let zoomTween = null; // {from, to, t, dur}: smooth zoom-in after pan
     function startZoomTween(to, dur) {
         zoomTween = { from: view.zoom, to, t: 0, dur };
+    }
+    let panTween = null; // {fromLat, fromLon, toLat, dlon, t, dur}: panoramic flight
+    function startPanTween(to) {
+        let dlon = to.lon - view.lon;
+        while (dlon > 180) dlon -= 360;
+        while (dlon < -180) dlon += 360;
+        const dist = Math.hypot(to.lat - view.lat, dlon);
+        panTween = { fromLat: view.lat, fromLon: view.lon, toLat: to.lat, dlon, t: 0, dur: Math.min(2.4, 1.0 + dist / 180 * 1.4) };
     }
     let marker = null; // {lat, lon, city, country, ip}
     let unknown = false;
@@ -62,6 +70,7 @@ window.CoverMap = (() => {
     function userHold() {
         pendingFly = null; // user takes over: cancel auto fly-to
         zoomTween = null;
+        panTween = null;
         notifyArrived(); // don't hold pending transitions hostage
     }
 
@@ -332,20 +341,40 @@ window.CoverMap = (() => {
         } else {
             view.zoom += (target.zoom - view.zoom) * k;
         }
-        view.lat += (target.lat - view.lat) * k;
-        view.lon = lerpAngle(view.lon, target.lon, k);
-        if (pendingFly && !zoomTween && view.zoom < 2.15) {
-            // zoomed out to z=2: recenter, then smooth zoom-in
-            view.lat = pendingFly.lat;
-            view.lon = pendingFly.lon;
+        if (panTween) {
+            panTween.t += dt;
+            let p = Math.min(1, panTween.t / panTween.dur);
+            p = p * p * p * (p * (p * 6 - 15) + 10); // smootherstep pan
+            view.lat = panTween.fromLat + (panTween.toLat - panTween.fromLat) * p;
+            view.lon = panTween.fromLon + panTween.dlon * p;
+            while (view.lon > 180) view.lon -= 360;
+            while (view.lon < -180) view.lon += 360;
+            if (p >= 1) {
+                view.lat = panTween.toLat;
+                let fl = panTween.fromLon + panTween.dlon;
+                while (fl > 180) fl -= 360;
+                while (fl < -180) fl += 360;
+                view.lon = fl;
+                target.lat = panTween.toLat;
+                target.lon = fl;
+                panTween = null;
+                startZoomTween(7, 2.8);
+            }
+        } else {
+            view.lat += (target.lat - view.lat) * k;
+            view.lon = lerpAngle(view.lon, target.lon, k);
+        }
+        if (pendingFly && !zoomTween && !panTween && view.zoom < 2.15) {
+            // zoomed out to z=2: start panoramic flight, dive in on arrival
+            marker = pendingFly;
             target.lat = pendingFly.lat;
             target.lon = pendingFly.lon;
-            marker = pendingFly;
+            const dest = pendingFly;
             pendingFly = null;
             unknown = false;
-            startZoomTween(7, 2.8);
+            startPanTween(dest);
         }
-        if (!arriveNotified && !pendingFly && !zoomTween && Math.abs(view.zoom - target.zoom) < 0.05) {
+        if (!arriveNotified && !pendingFly && !zoomTween && !panTween && Math.abs(view.zoom - target.zoom) < 0.05) {
             notifyArrived();
         }
         ctx.fillStyle = mapStyle === 'borders' ? '#07070f' : '#050505';
@@ -410,6 +439,7 @@ window.CoverMap = (() => {
             unknown = false;
             pendingFly = null;
             zoomTween = null;
+            panTween = null;
             arriveCb = null;
             arriveNotified = true;
             target.lat = 25;
@@ -432,6 +462,7 @@ window.CoverMap = (() => {
             marker = null;
             pendingFly = null;
             zoomTween = null;
+            panTween = null;
             unknown = true;
             notifyArrived(); // no zoom-in coming: release pending transitions
             target.lat = 25;
