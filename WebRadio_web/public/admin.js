@@ -149,9 +149,8 @@ document.addEventListener('DOMContentLoaded', () => {
         if (lfMap || typeof L === 'undefined') return;
         lfMap = L.map('lf-map', { zoomControl: false, minZoom: 1, maxZoom: 12, worldCopyJump: true, zoomSnap: 0.25 });
         lfMap.attributionControl.setPrefix(false);
-        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png', {
-            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
-            subdomains: 'abcd', maxZoom: 12
+        L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}', {
+            attribution: 'Esri', maxZoom: 12
         }).addTo(lfMap);
         lfMap.setView([25, 0], 1);
         lfMap.on('zoomend moveend', () => {
