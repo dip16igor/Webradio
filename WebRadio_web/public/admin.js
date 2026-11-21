@@ -650,7 +650,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let audioCtx = null;
     let analyserNode = null;
     let analyserData = null;
-    let spectrumRaf = 0;
+    let spectrumRaf = 0, lastSpecT = 0;
     let peakVals = null;
     let peakVel = null;
     let peakLastT = 0;
@@ -720,8 +720,18 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     const drawSpectrum = () => {
+        if (!analyserNode || playingIndex === -1) {
+            spectrumRaf = 0; // idle: stop the loop instead of spinning rAF for nothing
+            drawSpectrumIdle();
+            return;
+        }
+        const nowMs = performance.now();
+        if (nowMs - lastSpecT < 33) { // 30fps is plenty for bars; halves FFT + raster cost
+            spectrumRaf = requestAnimationFrame(drawSpectrum);
+            return;
+        }
+        lastSpecT = nowMs;
         spectrumRaf = requestAnimationFrame(drawSpectrum);
-        if (!analyserNode || playingIndex === -1) return;
         analyserNode.getByteFrequencyData(analyserData);
         const ctx2d = panelCanvasEl.getContext('2d');
         const W = panelCanvasEl.width;

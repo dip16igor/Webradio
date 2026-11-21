@@ -18,7 +18,7 @@ window.CoverMap = (() => {
     const BORDERS = __BORDERS_JSON__;
 
     let canvas = null, ctx = null, W = 0, H = 0;
-    let running = false, rafId = 0, lastT = 0;
+    let running = false, rafId = 0, lastT = 0, lastDrawT = 0;
     let playing = false;
     let mapStyle = 'dots'; // 'dots' | 'borders'
     let tG = 0;
@@ -180,11 +180,7 @@ window.CoverMap = (() => {
         }
     }
 
-    function drawBorders() {
-        ctx.strokeStyle = 'rgba(0,240,255,0.55)';
-        ctx.lineWidth = Math.max(1, Math.min(2, view.zoom * 0.3));
-        ctx.shadowColor = 'rgba(0,240,255,0.8)';
-        ctx.shadowBlur = 7;
+    function traceBorders() {
         ctx.beginPath();
         for (const ring of BORDERS) {
             let prev = null;
@@ -197,8 +193,19 @@ window.CoverMap = (() => {
                 prev = p;
             }
         }
+    }
+    function drawBorders() {
+        // fake glow: wide soft pass + thin core pass. No shadowBlur:
+        // a shadow on a 6k-point path every frame is the top CPU sink.
+        const w = Math.max(1, Math.min(2, view.zoom * 0.3));
+        ctx.lineWidth = w * 2.5;
+        ctx.strokeStyle = 'rgba(0,240,255,0.16)';
+        traceBorders();
         ctx.stroke();
-        ctx.shadowBlur = 0;
+        ctx.lineWidth = w;
+        ctx.strokeStyle = 'rgba(0,240,255,0.6)';
+        traceBorders();
+        ctx.stroke();
     }
 
     // Cyberpunk scan band sweeping top->bottom; returns band center Y.
@@ -377,6 +384,8 @@ window.CoverMap = (() => {
         if (!arriveNotified && !pendingFly && !zoomTween && !panTween && Math.abs(view.zoom - target.zoom) < 0.05) {
             notifyArrived();
         }
+        if (now - lastDrawT >= 33) { // 30fps draw gate: motion state still ticks every rAF
+            lastDrawT = now;
         ctx.fillStyle = mapStyle === 'borders' ? '#07070f' : '#050505';
         ctx.fillRect(0, 0, W, H);
         if (mapStyle === 'borders') {
@@ -392,6 +401,7 @@ window.CoverMap = (() => {
         }
         drawGlitch();
         drawHud();
+        } // end 30fps draw gate
         rafId = requestAnimationFrame(tick);
     }
 
