@@ -824,6 +824,15 @@ apiRouter.get('/stats', (req, res) => {
     });
 });
 
+// Reset accumulated listening statistics (admin action, confirmed in UI).
+apiRouter.delete('/stats', (req, res) => {
+    const n = Object.keys(usageStats.stations).length;
+    usageStats = { version: 1, updatedAt: new Date().toISOString(), stations: {} };
+    statsDirty = true;
+    persistStatsFile();
+    res.json({ success: true, data: { cleared: n } });
+});
+
 // Smart alarm schedule (server-side scenario; needs no firmware changes)
 apiRouter.get('/alarm/schedule', (req, res) => {
     const { runtime, ...rest } = alarmCfg;

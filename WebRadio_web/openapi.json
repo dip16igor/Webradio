@@ -244,6 +244,20 @@
         "responses": { "200": { "description": "{success, data:{ip, country, countryCode, city, lat, lon} | {unknown:true}}" } }
       }
     },
+    "/api/radio/stats": {
+      "get": {
+        "tags": ["radio"],
+        "summary": "Accumulated listening statistics",
+        "description": "Listening seconds, tune-ins, dropout samples/max, errors, last stream/title per stable station id (s<ID>).",
+        "responses": { "200": { "description": "{success, data:{version, updatedAt, stations}}" } }
+      },
+      "delete": {
+        "tags": ["radio"],
+        "summary": "Reset all listening statistics",
+        "description": "Clears accumulated stats (admin action, confirmed in UI). Returns the number of cleared entries.",
+        "responses": { "200": { "description": "{success, data:{cleared}}" } }
+      }
+    },
     "/api/radio/openapi.json": {
       "get": {
         "tags": ["discovery"],

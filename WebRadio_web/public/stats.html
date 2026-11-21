@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#1a1a1a">
+    <title>WebRadio Statistics</title>
+    <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="favicon-16x16.png">
+    <link rel="manifest" href="site.webmanifest">
+    <link rel="stylesheet" href="style.css">
+    <style>
+        .header-actions { display: flex; gap: 8px; align-items: center; }
+        .icon-btn {
+            background: #333;
+            color: #fff;
+            border: 1px solid #555;
+            border-radius: 4px;
+            padding: 4px 8px;
+            cursor: pointer;
+            font-size: 13px;
+        }
+        .icon-btn:hover { background: #444; }
+        .icon-btn.danger { background: #7a1f1f; border-color: #a33; }
+        .icon-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+
+        <div class="page-header">
+            <h1>Listening Statistics</h1>
+            <div class="header-actions">
+                <button id="btn-reset-stats" class="icon-btn danger" title="Delete all accumulated statistics">Reset</button>
+                <a class="admin-link" href="index.html" title="Back to radio control">&#8592; Back</a>
+            </div>
+        </div>
+
+        <p id="stats-summary" class="stats-summary">Loading...</p>
+
+        <div class="stats-table-wrap">
+            <table id="stats-table" class="stats-table">
+                <thead>
+                    <tr>
+                        <th data-sort="name">Station</th>
+                        <th data-sort="listenSec">Listened</th>
+                        <th data-sort="switches">Tune-ins</th>
+                        <th data-sort="dropMax">Dropouts max</th>
+                        <th data-sort="dropPerHour">Dropouts/h</th>
+                        <th data-sort="errCount">Errors</th>
+                        <th>Last stream</th>
+                        <th data-sort="lastSeen">Last heard</th>
+                    </tr>
+                </thead>
+                <tbody id="stats-body">
+                </tbody>
+            </table>
+        </div>
+
+    </div>
+
+    <script src="stats.js?v=3"></script>
+<script>
+if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+        navigator.serviceWorker.register('sw.js').catch((err) => console.warn('SW registration failed:', err));
+    });
+}
+</script>
+</body>
+
+</html>
