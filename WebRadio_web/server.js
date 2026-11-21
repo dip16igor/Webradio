@@ -6,6 +6,7 @@ const crypto = require('crypto');
 const http = require('http');
 const https = require('https');
 const WebSocket = require('ws');
+const cors = require('cors');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const { body, validationResult } = require('express-validator');
@@ -15,6 +16,19 @@ const jwt = require('jsonwebtoken');
 
 const app = express();
 app.set('trust proxy', 1); // Trust the first proxy
+
+// Desktop app (Tauri) talks to this API cross-origin from tauri://localhost.
+const PUB_CORS_ORIGINS = (process.env.PUB_CORS_ORIGINS || 'tauri://localhost,http://tauri.localhost,https://tauri.localhost').split(',').map((s) => s.trim()).filter(Boolean);
+app.use('/api/pub', cors({
+    origin: (origin, cb) => {
+        // NOTE: new URL('tauri://localhost').origin is the string 'null'
+        // (opaque origin), so compare the raw header verbatim.
+        if (!origin) return cb(null, true); // curl, same-origin navigations
+        if (origin === 'https://mirrorhub.space:8443' || PUB_CORS_ORIGINS.includes(origin)) return cb(null, true);
+        return cb(null, false);
+    },
+    credentials: true,
+}));
 
 // Security headers
 app.use(helmet({
@@ -77,7 +91,7 @@ const pubSessionUid = (req) => {
     } catch (e) { return null; }
 };
 const pubSignUid = (uid) => jwt.sign({ uid: String(uid) }, PUB_JWT_SECRET, { expiresIn: '30d' });
-const PUB_COOKIE_OPTS = 'HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=2592000';
+const PUB_COOKIE_OPTS = 'HttpOnly; Secure; SameSite=None; Path=/; Max-Age=2592000';
 let pubUsers = null; // { users: [{id, login, hash, createdAt}] }
 const pubUsersFile = () => path.join(PUB_DIR, 'users.json');
 const pubLoadUsers = () => {
@@ -1242,7 +1256,7 @@ pubRouter.post('/login', pubLoginLimiter, async (req, res) => {
     res.json({ success: true, data: { login: u.login } });
 });
 pubRouter.post('/logout', (req, res) => {
-    res.setHeader('Set-Cookie', `${PUB_COOKIE}=; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=0`);
+    res.setHeader('Set-Cookie', `${PUB_COOKIE}=; HttpOnly; Secure; SameSite=None; Path=/; Max-Age=0`);
     res.json({ success: true });
 });
 pubRouter.get('/me', pubAuth, (req, res) => {
@@ -1653,6 +1667,7 @@ apiRouter.get('/preview', previewAuth, async (req, res) => {
         }
         res.status(200);
         res.set('Content-Type', up.headers['content-type'] || 'audio/mpeg');
+        res.set('Access-Control-Allow-Origin', '*'); // media CORS: desktop WebView needs it for sound+spectrum
         for (const [k, v] of Object.entries(up.headers)) {
             if (k.startsWith('icy-') && k !== 'icy-metaint') res.set(k, v);
         }
@@ -1744,6 +1759,7 @@ app.get('/audio/:name', async (req, res) => {
         }
         res.status(200);
         res.set('Content-Type', up.headers['content-type'] || 'audio/mpeg');
+        res.set('Access-Control-Allow-Origin', '*'); // media CORS: desktop WebView needs it for sound+spectrum
         for (const [k, v] of Object.entries(up.headers)) {
             if (k.startsWith('icy-')) res.set(k, v);
         }
