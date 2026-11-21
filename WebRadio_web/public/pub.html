@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>WebRadio — публичный плеер</title>
-    <link rel="manifest" href="site.webmanifest">
+    <link rel="manifest" href="pub-manifest.json">
     <meta name="theme-color" content="#141414">
     <link rel="icon" href="radio.svg" type="image/svg+xml">
     <script>
@@ -220,6 +220,13 @@
     </div>
 
     <audio id="pub-audio" preload="none"></audio>
-    <script src="pub.js?v=1"></script>
+    <script src="pub.js?v=2"></script>
+<script>
+if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+        navigator.serviceWorker.register('sw.js').catch(() => {});
+    });
+}
+</script>
 </body>
 </html>

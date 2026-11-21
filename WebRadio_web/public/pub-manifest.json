@@ -1,0 +1,24 @@
+{
+  "name": "WebRadio Player",
+  "short_name": "WebRadio",
+  "description": "Личный WebRadio-плеер со своим списком станций",
+  "id": "pub-player",
+  "start_url": "pub.html",
+  "scope": "/webradio/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#141414",
+  "theme_color": "#141414",
+  "icons": [
+    {
+      "src": "android-chrome-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "android-chrome-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
