@@ -4,6 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#1a1a1a">
     <title>ESP32 WebRadio Control</title>
     <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
     <link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png">
@@ -17,7 +18,12 @@
 
         <div class="page-header">
             <h1>ESP32 WebRadio</h1>
-            <a class="admin-link" href="admin.html" title="Add, remove, reorder stations">Station Manager</a>
+            <div class="header-links">
+                <a class="admin-link" href="alarm.html" title="Wake-up schedule">Alarm</a>
+                <a class="admin-link" href="stats.html" title="Listening statistics">Statistics</a>
+                <a class="admin-link" href="admin.html" title="Add, remove, reorder stations">Station Manager</a>
+                <a class="admin-link" href="pub.html" title="Public player with own stations">Public player</a>
+            </div>
         </div>
 
         <div id="status-container" class="status-offline">
@@ -62,6 +68,13 @@
     </div>
 
     <script src="app.js"></script>
+<script>
+if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+        navigator.serviceWorker.register('sw.js').catch((err) => console.warn('SW registration failed:', err));
+    });
+}
+</script>
 </body>
 
 </html>

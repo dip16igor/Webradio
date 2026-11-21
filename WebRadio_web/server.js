@@ -1540,6 +1540,7 @@ const parseAudioFrame = (buf) => {
 const previewAuth = (req, res, next) => {
     const token = req.headers['x-auth-token'] || req.query.token;
     if (token && token === SECRET_TOKEN) return next();
+    if (pubSessionUid(req)) return next(); // public player: logged-in user
     return res.status(401).json({ success: false, message: 'Unauthorized: Invalid or missing token' });
 };
 
