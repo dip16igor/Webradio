@@ -27,6 +27,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const mapCanvasEl = document.getElementById('cover-map');
     const globeBtn = document.getElementById('cover-globe-btn');
     const mapStyleBtn = document.getElementById('map-style-btn');
+    const leafletBoxEl = document.getElementById('cover-leaflet');
+    const lfZoomEl = document.getElementById('lf-zoom');
+    const lfLabelEl = document.getElementById('lf-label');
 
     // Cover appearance FX: genre picks the world (CRT / glitch / Moon shot).
     const COVER_FX = ['fx-tv', 'fx-glitch', 'fx-moon'];
@@ -117,25 +120,121 @@ document.addEventListener('DOMContentLoaded', () => {
     let pendingCover = null;
     let coverHoldSeq = 0;
     let mapStyle = 'dots';
+    const MAP_STYLES = ['dots', 'borders', 'leaflet'];
+    const MAP_TITLES = { dots: 'Карта: точки', borders: 'Карта: границы', leaflet: 'Карта: Leaflet' };
     try {
         const s = localStorage.getItem('webradio_mapstyle');
-        if (s === 'dots' || s === 'borders') mapStyle = s;
+        if (MAP_STYLES.includes(s)) mapStyle = s;
     } catch (e) { /* noop */ }
     const applyMapStyle = () => {
-        CoverMap.setStyle(mapStyle);
-        mapStyleBtn.title = mapStyle === 'borders' ? 'Карта: границы' : 'Карта: точки';
+        if (mapStyle !== 'leaflet') CoverMap.setStyle(mapStyle);
+        mapStyleBtn.title = MAP_TITLES[mapStyle] || 'Карта';
     };
     const updateMapNoise = () => {
         coverNoiseEl.classList.toggle('hud', coverView === 'map' && playingIndex !== -1);
     };
+    // --- Leaflet map style (dark tiles, no labels) ---
+    let lfMap = null, lfMarker = null, lfFlying = false, lfArriveCb = null;
+    let lastGeo = null;
+    const lfMarkIcon = () => L.divIcon({ className: 'lf-mark-wrap', html: '<div class="lf-mark"></div>', iconSize: [18, 18], iconAnchor: [9, 9] });
+    const setLfLabel = (html, amber) => {
+        lfLabelEl.innerHTML = html;
+        lfLabelEl.classList.toggle('amber', !!amber);
+    };
+    const updateLfHud = () => {
+        if (!lfMap) return;
+        lfZoomEl.textContent = `Z x${lfMap.getZoom().toFixed(1)}`;
+    };
+    const lfInit = () => {
+        if (lfMap || typeof L === 'undefined') return;
+        lfMap = L.map('lf-map', { zoomControl: false, minZoom: 1, maxZoom: 12, worldCopyJump: true, zoomSnap: 0.25 });
+        lfMap.attributionControl.setPrefix(false);
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
+            subdomains: 'abcd', maxZoom: 12
+        }).addTo(lfMap);
+        lfMap.setView([25, 0], 1);
+        lfMap.on('zoomend moveend', () => {
+            updateLfHud();
+            if (lfFlying) {
+                lfFlying = false;
+                const cb = lfArriveCb;
+                lfArriveCb = null;
+                if (cb) cb();
+            }
+        });
+        lfMap.on('dragstart', () => {
+            if (lfFlying) {
+                lfFlying = false;
+                const cb = lfArriveCb;
+                lfArriveCb = null;
+                if (cb) cb();
+            }
+        });
+    };
+    const lfShowPlace = (lat, lon, info, animate) => {
+        lastGeo = { lat, lon, info };
+        setLfLabel(`${escHtml(info.city || '?').toUpperCase()} / ${escHtml(info.country || '?').toUpperCase()}<br>${lat.toFixed(2)} ${lon.toFixed(2)}${info.ip ? `<br>${escHtml(info.ip)}` : ''}`, false);
+        if (!lfMap) return;
+        if (!lfMarker) {
+            lfMarker = L.marker([lat, lon], { icon: lfMarkIcon(), interactive: false }).addTo(lfMap);
+        } else {
+            lfMarker.setLatLng([lat, lon]);
+        }
+        if (animate && coverView === 'map') {
+            lfFlying = true;
+            lfMap.flyTo([lat, lon], 7, { duration: 2.8 });
+        } else {
+            lfFlying = false;
+            lfMap.setView([lat, lon], 7);
+        }
+        updateLfHud();
+    };
+    const lfOnArrived = (cb) => {
+        if (!lfFlying) { setTimeout(cb, 0); return; }
+        lfArriveCb = cb;
+    };
+    const lfAcquiring = () => {
+        setLfLabel('ACQUIRING…', true);
+        if (!lfMap) return;
+        lfFlying = false;
+        lfArriveCb = null;
+        lfMap.setView([25, 0], 1);
+        updateLfHud();
+    };
+    const lfShowUnknown = () => {
+        setLfLabel('LOCATION UNKNOWN', true);
+        if (!lfMap) return;
+        lfFlying = false;
+        const cb = lfArriveCb;
+        lfArriveCb = null;
+        lfMap.setView([25, 0], 1);
+        updateLfHud();
+        if (cb) cb();
+    };
     const setCoverView = (which) => {
         coverView = which;
         const isMap = which === 'map';
+        const useLeaflet = isMap && mapStyle === 'leaflet';
         panelCoverEl.hidden = isMap;
-        mapCanvasEl.hidden = !isMap;
+        mapCanvasEl.hidden = !isMap || useLeaflet;
+        leafletBoxEl.hidden = !useLeaflet;
         globeBtn.classList.toggle('active', isMap);
         mapStyleBtn.hidden = !isMap;
-        if (isMap) {
+        if (useLeaflet) {
+            lfInit();
+            if (lfMap) {
+                requestAnimationFrame(() => {
+                    if (!lfMap) return;
+                    lfMap.invalidateSize();
+                    updateLfHud();
+                });
+            }
+            coverNoiseEl.classList.remove('on', 'ramp-fast', 'snow');
+            CoverMap.stop();
+            if (lastGeo && lastGeo.info) lfShowPlace(lastGeo.lat, lastGeo.lon, lastGeo.info, true);
+            else lfAcquiring();
+        } else if (isMap) {
             coverNoiseEl.classList.remove('on', 'ramp-fast', 'snow');
             CoverMap.resize();
             CoverMap.start();
@@ -149,7 +248,10 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!mapPinned && playingIndex !== -1) setCoverView('map');
     };
     const fetchStationGeo = (url, index) => {
-        if (coverView === 'map') CoverMap.acquiring();
+        if (coverView === 'map') {
+            if (mapStyle === 'leaflet') lfAcquiring();
+            else CoverMap.acquiring();
+        }
         const token = getToken();
         if (!token) return;
         fetch(`${API_BASE_PATH}/geo?url=${encodeURIComponent(url)}`, {
@@ -160,12 +262,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (index !== playingIndex) return;
                 const d = json && json.data;
                 if (json && json.success && d && !d.unknown && typeof d.lat === 'number' && typeof d.lon === 'number') {
-                    CoverMap.flyTo(d.lat, d.lon, { city: d.city, country: d.country, ip: d.ip });
+                    const info = { city: d.city, country: d.country, ip: d.ip };
+                    CoverMap.flyTo(d.lat, d.lon, info);
+                    lastGeo = { lat: d.lat, lon: d.lon, info };
+                    if (lfMap) lfShowPlace(d.lat, d.lon, info, coverView === 'map' && mapStyle === 'leaflet');
                 } else {
                     CoverMap.showUnknown();
+                    lastGeo = null;
+                    if (lfMap) lfShowUnknown();
                 }
             })
-            .catch(() => { if (index === playingIndex) CoverMap.showUnknown(); });
+            .catch(() => { if (index !== playingIndex) return; CoverMap.showUnknown(); lastGeo = null; if (lfMap) lfShowUnknown(); });
     };
     globeBtn.addEventListener('click', () => {
         if (coverView === 'map') {
@@ -178,9 +285,15 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     mapStyleBtn.addEventListener('click', (ev) => {
         ev.stopPropagation();
-        mapStyle = (CoverMap.getStyle() === 'borders') ? 'dots' : 'borders';
+        const order = ['dots', 'borders', 'leaflet'];
+        const cur = MAP_STYLES.includes(mapStyle) ? mapStyle : CoverMap.getStyle();
+        mapStyle = order[(order.indexOf(cur) + 1) % order.length];
         try { localStorage.setItem('webradio_mapstyle', mapStyle); } catch (e) { /* noop */ }
         applyMapStyle();
+        // a style switch means the user wants to look at the map: drop any pending cover hold
+        pendingCover = null;
+        coverHoldForMap = false;
+        if (coverView === 'map') setCoverView('map');
     });
     CoverMap.init(mapCanvasEl);
     applyMapStyle();
@@ -195,6 +308,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const rightColEl = document.querySelector('.preview-right');
     const fitCover = () => {
         if (!coverCardEl || !rightColEl) return;
+        if (coverView === 'map' && mapStyle === 'leaflet' && lfMap) lfMap.invalidateSize();
         if (window.innerWidth <= 700) { coverCardEl.style.width = ''; CoverMap.resize(); return; }
         const h = Math.round(rightColEl.getBoundingClientRect().height);
         if (h > 60 && Math.abs(h - coverCardEl.getBoundingClientRect().width) > 1) {
@@ -478,7 +592,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         // map is open after a switch: hold the cover until the
                         // fly-to finishes, then transition with the intro FX.
                         pendingCover = { url: cover, genre, seq: coverHoldSeq, index: myIndex };
-                        CoverMap.whenArrived(() => {
+                        const mapArrivedGo = () => {
                             setTimeout(() => {
                                 if (!pendingCover || pendingCover.seq !== coverHoldSeq || pendingCover.index !== playingIndex) return;
                                 const pc = pendingCover;
@@ -487,7 +601,13 @@ document.addEventListener('DOMContentLoaded', () => {
                                 setCoverView('cover');
                                 applyCover(pc.url, pc.genre);
                             }, 2000);
-                        });
+                        };
+                        if (mapStyle === 'leaflet') {
+                            lfOnArrived(mapArrivedGo);
+                            setTimeout(mapArrivedGo, 9000); // safety: never hold the cover hostage on a missed moveend
+                        } else {
+                            CoverMap.whenArrived(mapArrivedGo);
+                        }
                         return;
                     }
                     hasCoverArt = true;

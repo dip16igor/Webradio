@@ -8,6 +8,7 @@
     <title>ESP32 WebRadio - Station Manager</title>
     <link rel="manifest" href="site.webmanifest">
     <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="leaflet.css?v=1">
     <link rel="icon" href="radio.svg" type="image/svg+xml">
     <style>
         .admin-toolbar {
@@ -218,6 +219,48 @@
         .cover-map:active { cursor: grabbing; }
         .cover-map[hidden] { display: none; }
         .cover-img[hidden] { display: none; }
+
+        .cover-leaflet { position: absolute; inset: 0; z-index: 1; background: #050505; }
+        .cover-leaflet[hidden] { display: none; }
+        #lf-map { position: absolute; inset: 0; background: #050505; }
+        .leaflet-container { background: #050505; font: inherit; }
+        .leaflet-control-attribution { background: rgba(0,0,0,0.55) !important; color: #666 !important; font-size: 9px !important; }
+        .leaflet-control-attribution a { color: #777 !important; }
+        .lf-hud {
+            position: absolute;
+            z-index: 600;
+            font: 11px "Courier New", monospace;
+            color: #7ddb9b;
+            pointer-events: none;
+            text-shadow: 0 0 4px #000, 0 0 4px #000;
+        }
+        .lf-hud-tl { top: 6px; left: 8px; }
+        .lf-hud-zoom { bottom: 20px; right: 8px; text-align: right; }
+        .lf-hud-label { bottom: 6px; left: 8px; max-width: 92%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .lf-hud-label.amber { color: #f2c94d; }
+        .lf-mark { width: 18px; height: 18px; position: relative; }
+        .lf-mark::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            border: 1.5px solid #00f0ff;
+            border-radius: 50%;
+            animation: lfPing 1.6s ease-out infinite;
+        }
+        .lf-mark::after {
+            content: '';
+            position: absolute;
+            left: 7px;
+            top: 7px;
+            width: 4px;
+            height: 4px;
+            background: #ff00a0;
+            border-radius: 50%;
+        }
+        @keyframes lfPing {
+            0% { transform: scale(0.4); opacity: 1; }
+            100% { transform: scale(1.8); opacity: 0; }
+        }
         .cover-noise.hud {
             opacity: 0.07;
             filter: sepia(1) saturate(2.5) hue-rotate(-20deg);
@@ -410,6 +453,12 @@
             <div class="card card-cover">
                 <img id="preview-cover" class="cover-img" src="radio.svg" alt="cover">
                 <canvas id="cover-map" class="cover-map" hidden></canvas>
+                <div id="cover-leaflet" class="cover-leaflet" hidden>
+                    <div id="lf-map"></div>
+                    <div class="lf-hud lf-hud-tl">GEO-TRACE // LEAFLET</div>
+                    <div id="lf-zoom" class="lf-hud lf-hud-zoom">Z x1.0</div>
+                    <div id="lf-label" class="lf-hud lf-hud-label">ACQUIRING…</div>
+                </div>
                 <div id="cover-noise" class="cover-noise"></div>
                 <div id="cover-track" class="cover-track"></div>
                 <button id="cover-globe-btn" class="cover-icon-btn" title="Карта сервера">
@@ -498,7 +547,8 @@
     </div>
 
     <script src="covermap.js?v=9"></script>
-    <script src="admin.js?v=25"></script>
+    <script src="leaflet.js?v=1"></script>
+    <script src="admin.js?v=26"></script>
 <script>
 if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {

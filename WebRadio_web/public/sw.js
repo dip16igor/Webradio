@@ -1,5 +1,5 @@
 /* WebRadio PWA service worker: app shell offline, live API/audio always network. */
-const CACHE = 'webradio-v1';
+const CACHE = 'webradio-v2';
 const SHELL = [
     'index.html',
     'admin.html',
@@ -10,6 +10,9 @@ const SHELL = [
     'admin.js',
     'stats.js',
     'alarm.js',
+    'covermap.js',
+    'leaflet.js',
+    'leaflet.css',
     'site.webmanifest',
     'radio.svg',
     'favicon-32x32.png',
