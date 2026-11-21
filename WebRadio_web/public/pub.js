@@ -249,6 +249,9 @@
         stopProbeLoop();
         directMode = /^https:/i.test(st.url);
         playingId = st.id;
+        lastStream = null;
+        bandMax = 0;
+        peakVals = null; // realloc on next frame, resets session max
         setStatus(st.name, directMode ? 'прямое подключение…' : 'через релей…');
         coverEl.src = 'radio.svg';
         audioEl.src = directMode ? st.url : relayUrl(st.url);
@@ -291,8 +294,9 @@
             if (!json.success || playingId !== st.id) return;
             const d = json.data || {};
             const title = d.streamTitle || st.name;
-            const parts = [d.codec, d.bitrate, d.srHz ? `${d.srHz} Гц` : null, d.ch].filter(Boolean);
-            setStatus(title + (directMode ? '' : ' · релей'), parts.join(' · '));
+            trackEl.textContent = title + (directMode ? '' : ' · релей');
+            lastStream = { codec: d.codec, bitrate: d.bitrate, srHz: d.srHz, ch: d.ch };
+            refreshMeta();
             if (d.streamTitle) fetchCover(d.streamTitle);
         } catch (e) { /* keep playing on probe errors */ }
     };
@@ -308,10 +312,39 @@
         } catch (e) { /* no cover */ }
     };
 
-    // --- Spectrum (slim: bars + attack/release, no tune panel) ---
+    // --- Spectrum: log bars, peak caps on gravity, tune popup (persisted) ---
+    const FFT_SIZES = [256, 512, 1024, 2048, 4096, 8192];
+    const tune = { grav: 0.6, atk: 0, rel: 0, dbMax: -6, dbMin: -80, fft: 4096, bars: 48 };
+    try {
+        const saved = JSON.parse(localStorage.getItem('pub_tune') || '{}');
+        if (saved.grav >= 0.2 && saved.grav <= 2) tune.grav = saved.grav;
+        if (saved.atk >= 0 && saved.atk <= 900) tune.atk = saved.atk;
+        if (saved.rel >= 0 && saved.rel <= 900) tune.rel = saved.rel;
+        if (saved.dbMax >= -30 && saved.dbMax <= 0) tune.dbMax = saved.dbMax;
+        if (saved.dbMin >= -120 && saved.dbMin <= -40) tune.dbMin = saved.dbMin;
+        if (FFT_SIZES.includes(saved.fft)) tune.fft = saved.fft;
+        if (saved.bars >= 16 && saved.bars <= 96) tune.bars = saved.bars;
+    } catch (e) { /* noop */ }
+    if (tune.dbMin >= tune.dbMax) tune.dbMin = tune.dbMax - 10;
     let audioCtx = null, analyserNode = null, analyserData = null, spectrumRaf = 0;
-    let barVals = null;
+    let barVals = null, peakVals = null, peakVel = null, peakLastT = 0, logMap = null;
+    let lastStream = null, bandMax = 0;
     const specCtx = specCanvas.getContext('2d');
+    const buildLogMap = (n) => {
+        const bins = analyserData.length;
+        const binHz = audioCtx.sampleRate / analyserNode.fftSize;
+        const nyq = audioCtx.sampleRate / 2;
+        const fMin = 40;
+        const map = [];
+        for (let i = 0; i < n; i++) {
+            const f0 = fMin * Math.pow(nyq / fMin, i / n);
+            const f1 = fMin * Math.pow(nyq / fMin, (i + 1) / n);
+            const b0 = Math.max(0, Math.floor(f0 / binHz));
+            const b1 = Math.min(bins - 1, Math.max(b0, Math.ceil(f1 / binHz) - 1));
+            map.push([b0, b1, f1]);
+        }
+        return map;
+    };
     const fitSpec = () => {
         const r = specCanvas.getBoundingClientRect();
         const w = Math.max(80, Math.round(r.width));
@@ -326,13 +359,15 @@
             if (!audioCtx) {
                 const AC = window.AudioContext || window.webkitAudioContext;
                 audioCtx = new AC();
-                const src = audioCtx.createMediaElementSource(audioEl);
                 analyserNode = audioCtx.createAnalyser();
-                analyserNode.fftSize = 2048;
+                analyserNode.fftSize = tune.fft;
+                analyserNode.minDecibels = tune.dbMin;
+                analyserNode.maxDecibels = tune.dbMax;
                 analyserNode.smoothingTimeConstant = 0.8;
-                analyserData = new Uint8Array(analyserNode.frequencyBinCount);
+                const src = audioCtx.createMediaElementSource(audioEl);
                 src.connect(analyserNode);
                 analyserNode.connect(audioCtx.destination);
+                analyserData = new Uint8Array(analyserNode.frequencyBinCount);
             }
             if (audioCtx.state === 'suspended') audioCtx.resume();
             fitSpec();
@@ -342,7 +377,18 @@
     const drawSpectrumIdle = () => {
         specCtx.clearRect(0, 0, specCanvas.width, specCanvas.height);
     };
-    const cssAccent = () => getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() || '#7ddb9b';
+    const fmtKHz = (hz) => {
+        if (!hz || hz <= 0) return '—';
+        return hz >= 1000 ? `${String(parseFloat((hz / 1000).toFixed(1))).replace('.', ',')} кГц` : `${Math.round(hz)} Гц`;
+    };
+    const refreshMeta = () => {
+        if (!lastStream) return;
+        let srPart = lastStream.srHz ? fmtKHz(lastStream.srHz) : null;
+        if (lastStream.srHz && bandMax > 0) srPart += ` (${fmtKHz(bandMax)} макс)`;
+        const parts = [lastStream.codec, lastStream.bitrate, srPart, lastStream.ch].filter(Boolean);
+        metaEl.textContent = parts.join(' · ') + (directMode ? '' : ' · релей');
+    };
+    const cssAccent = () => document.documentElement.getAttribute('data-theme') === 'light' ? ['#bfe6cc', '#1d7c3f'] : ['#1d5c33', '#7ddb9b'];
     const drawSpectrum = () => {
         if (!analyserNode || playingId === -1) {
             spectrumRaf = 0;
@@ -352,34 +398,169 @@
         spectrumRaf = requestAnimationFrame(drawSpectrum);
         analyserNode.getByteFrequencyData(analyserData);
         const W = specCanvas.width, H = specCanvas.height;
-        const n = 48;
-        if (!barVals || barVals.length !== n) barVals = new Float32Array(n);
-        specCtx.clearRect(0, 0, W, H);
-        const dark = document.documentElement.getAttribute('data-theme') !== 'light';
-        const g = specCtx.createLinearGradient(0, H, 0, 0);
-        if (dark) { g.addColorStop(0, '#1d5c33'); g.addColorStop(1, '#7ddb9b'); }
-        else { g.addColorStop(0, '#bfe6cc'); g.addColorStop(1, '#1d7c3f'); }
-        specCtx.fillStyle = g;
-        // log-spaced bins from ~40 Hz to Nyquist
-        const sr = audioCtx.sampleRate, nyq = sr / 2, f0 = 40;
+        const n = tune.bars;
+        if (!peakVals || peakVals.length !== n) {
+            peakVals = new Float32Array(n);
+            peakVel = new Float32Array(n);
+            barVals = new Float32Array(n);
+            peakLastT = performance.now();
+            bandMax = 0;
+            logMap = buildLogMap(n);
+            refreshMeta();
+        }
+        const nowT = performance.now();
+        const dt = Math.min(0.1, Math.max(0.001, (nowT - peakLastT) / 1000));
+        peakLastT = nowT;
+        const GRAV = (2 * H) / (tune.grav * tune.grav);
         const bw = W / n;
+        const capH = Math.max(2, H * 0.03);
+        let topBin = -1;
+        specCtx.clearRect(0, 0, W, H);
+        const [c0, c1] = cssAccent();
+        const g = specCtx.createLinearGradient(0, H, 0, 0);
+        g.addColorStop(0, c0);
+        g.addColorStop(1, c1);
+        specCtx.fillStyle = g;
         for (let i = 0; i < n; i++) {
-            const fLo = f0 * Math.pow(nyq / f0, i / n);
-            const fHi = f0 * Math.pow(nyq / f0, (i + 1) / n);
-            const bLo = Math.floor((fLo / nyq) * analyserData.length);
-            const bHi = Math.max(bLo, Math.ceil((fHi / nyq) * analyserData.length) - 1);
+            const lb0 = logMap[i][0];
+            const lb1 = logMap[i][1];
             let v = 0;
-            for (let j = bLo; j <= bHi && j < analyserData.length; j++) if (analyserData[j] > v) v = analyserData[j];
-            const target = ((v - 80) / (255 - 80)) * H; // -80 dBFS floor-ish window
+            for (let j = lb0; j <= lb1; j++) if (analyserData[j] > v) v = analyserData[j];
+            if (v >= 12) topBin = i;
+            const target = (v / 255) * H;
             let bh = barVals[i];
-            if (target > bh) bh = Math.min(target, bh + H * 0.25);
-            else bh = Math.max(target, bh - H * 0.12);
-            barVals[i] = Math.max(0, bh);
-            const h = Math.max(2, barVals[i]);
+            if (tune.atk > 0 && target > bh) bh = Math.min(target, bh + (H * dt) / (tune.atk / 1000));
+            else if (tune.rel > 0 && target < bh) bh = Math.max(target, bh - (H * dt) / (tune.rel / 1000));
+            else bh = target;
+            barVals[i] = bh;
+            const h = Math.max(2, bh);
+            if (h >= peakVals[i]) {
+                peakVals[i] = h;
+                peakVel[i] = 0;
+            } else {
+                peakVel[i] += GRAV * dt;
+                peakVals[i] = Math.max(0, peakVals[i] - peakVel[i] * dt);
+            }
             specCtx.fillRect(i * bw + 1, H - h, Math.max(1, bw - 2), h);
+        }
+        specCtx.fillStyle = '#f2c94d';
+        for (let i = 0; i < n; i++) {
+            specCtx.fillRect(i * bw + 1, Math.min(H - capH, H - peakVals[i]), Math.max(1, bw - 2), capH);
+        }
+        const occHz = topBin >= 0 ? logMap[topBin][2] : 0;
+        if (occHz > bandMax) {
+            bandMax = occHz;
+            refreshMeta();
         }
     };
     window.addEventListener('resize', () => { if (playingId !== -1) fitSpec(); });
+
+    // --- Tune popup wiring ---
+    const $ = (id) => document.getElementById(id);
+    const tDbMaxEl = $('p-tune-dbmax'), tDbMinEl = $('p-tune-dbmin'), tGravEl = $('p-tune-grav');
+    const tAtkEl = $('p-tune-atk'), tRelEl = $('p-tune-rel'), tFftEl = $('p-tune-fft'), tBarsEl = $('p-tune-bars');
+    const tDbMaxV = $('p-tune-dbmax-v'), tDbMinV = $('p-tune-dbmin-v'), tGravV = $('p-tune-grav-v');
+    const tAtkV = $('p-tune-atk-v'), tRelV = $('p-tune-rel-v'), tFftV = $('p-tune-fft-v'), tBarsV = $('p-tune-bars-v');
+    const specMenuEl = $('spec-menu');
+    const specMenuBtn = $('spec-menu-btn');
+    const saveTune = () => {
+        try { localStorage.setItem('pub_tune', JSON.stringify(tune)); } catch (e) { /* noop */ }
+    };
+    const fmtDb = (v) => String(v).replace('-', '−');
+    const applyTuneToInputs = () => {
+        tGravEl.value = tune.grav;
+        tAtkEl.value = tune.atk;
+        tRelEl.value = tune.rel;
+        tDbMaxEl.value = tune.dbMax;
+        tDbMinEl.value = tune.dbMin;
+        tFftEl.value = Math.max(0, FFT_SIZES.indexOf(tune.fft));
+        tBarsEl.value = tune.bars;
+        tGravV.textContent = `${parseFloat(tune.grav.toFixed(1))} с`;
+        tAtkV.textContent = `${tune.atk} мс`;
+        tRelV.textContent = `${tune.rel} мс`;
+        tDbMaxV.textContent = fmtDb(tune.dbMax);
+        tDbMinV.textContent = fmtDb(tune.dbMin);
+        tFftV.textContent = `${tune.fft}`;
+        tBarsV.textContent = `${tune.bars}`;
+    };
+    const applyDb = () => {
+        if (!analyserNode) return;
+        analyserNode.minDecibels = tune.dbMin;
+        analyserNode.maxDecibels = tune.dbMax;
+    };
+    const reallocSpectrum = () => {
+        if (analyserNode) analyserData = new Uint8Array(analyserNode.frequencyBinCount);
+        peakVals = null;
+    };
+    tGravEl.addEventListener('input', () => {
+        tune.grav = parseFloat(tGravEl.value) || 0.6;
+        tGravV.textContent = `${parseFloat(tune.grav.toFixed(1))} с`;
+        saveTune();
+    });
+    tAtkEl.addEventListener('input', () => {
+        tune.atk = parseInt(tAtkEl.value, 10) || 0;
+        tAtkV.textContent = `${tune.atk} мс`;
+        saveTune();
+    });
+    tRelEl.addEventListener('input', () => {
+        tune.rel = parseInt(tRelEl.value, 10) || 0;
+        tRelV.textContent = `${tune.rel} мс`;
+        saveTune();
+    });
+    tDbMaxEl.addEventListener('input', () => {
+        tune.dbMax = parseInt(tDbMaxEl.value, 10);
+        if (Number.isNaN(tune.dbMax)) tune.dbMax = -6;
+        if (tune.dbMin >= tune.dbMax) {
+            tune.dbMin = tune.dbMax - 10;
+            tDbMinEl.value = tune.dbMin;
+            tDbMinV.textContent = fmtDb(tune.dbMin);
+        }
+        tDbMaxV.textContent = fmtDb(tune.dbMax);
+        applyDb();
+        saveTune();
+    });
+    tDbMinEl.addEventListener('input', () => {
+        tune.dbMin = parseInt(tDbMinEl.value, 10);
+        if (Number.isNaN(tune.dbMin)) tune.dbMin = -80;
+        if (tune.dbMin >= tune.dbMax) {
+            tune.dbMax = tune.dbMin + 10;
+            if (tune.dbMax > 0) { tune.dbMax = 0; tune.dbMin = -10; }
+            tDbMaxEl.value = tune.dbMax;
+            tDbMinEl.value = tune.dbMin;
+            tDbMaxV.textContent = fmtDb(tune.dbMax);
+            tDbMinV.textContent = fmtDb(tune.dbMin);
+        } else {
+            tDbMinV.textContent = fmtDb(tune.dbMin);
+        }
+        applyDb();
+        saveTune();
+    });
+    tFftEl.addEventListener('input', () => {
+        const idx = Math.min(FFT_SIZES.length - 1, Math.max(0, parseInt(tFftEl.value, 10) || 0));
+        tune.fft = FFT_SIZES[idx];
+        tFftV.textContent = `${tune.fft}`;
+        if (analyserNode && analyserNode.fftSize !== tune.fft) {
+            analyserNode.fftSize = tune.fft;
+            reallocSpectrum();
+        }
+        saveTune();
+    });
+    tBarsEl.addEventListener('input', () => {
+        tune.bars = parseInt(tBarsEl.value, 10) || 48;
+        tBarsV.textContent = `${tune.bars}`;
+        reallocSpectrum();
+        saveTune();
+    });
+    specMenuBtn.addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        specMenuEl.hidden = !specMenuEl.hidden;
+    });
+    document.addEventListener('click', (ev) => {
+        if (!specMenuEl.hidden && !specMenuEl.contains(ev.target) && ev.target !== specMenuBtn) {
+            specMenuEl.hidden = true;
+        }
+    });
+    applyTuneToInputs();
 
     // --- Boot ---
     (async () => {
