@@ -163,6 +163,11 @@
         .spec-menu label { display: grid; grid-template-columns: 62px 1fr 48px; gap: 8px; align-items: center; white-space: nowrap; }
         .spec-menu input[type="range"] { width: 100%; accent-color: var(--accent); height: 16px; }
         .spec-menu span { color: var(--text); text-align: right; }
+        #st-list { max-height: 320px; overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--accent-dim) transparent; }
+        #st-list::-webkit-scrollbar { width: 10px; }
+        #st-list::-webkit-scrollbar-track { background: transparent; }
+        #st-list::-webkit-scrollbar-thumb { background: var(--accent-dim); border-radius: 5px; border: 2px solid var(--card); }
+        #st-list::-webkit-scrollbar-thumb:hover { background: var(--accent); }
         .st-row {
             display: flex;
             align-items: center;
@@ -266,7 +271,7 @@
     </div>
 
     <audio id="pub-audio" preload="none"></audio>
-    <script src="pub.js?v=3"></script>
+    <script src="pub.js?v=4"></script>
 <script>
 if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {

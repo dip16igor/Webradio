@@ -47,6 +47,7 @@
     const audioEl = document.getElementById('pub-audio');
 
     let mode = 'login';
+    let playSeq = 0, directSeq = 0;
     let stations = [];
     let playingId = -1;
     let directMode = false; // true = direct upstream, false = via relay
@@ -233,8 +234,10 @@
         metaEl.textContent = meta;
     };
     audioEl.addEventListener('error', () => {
-        if (directMode && playingId !== -1) {
-            // direct upstream failed (mixed content, dead host, cert) -> relay
+        if (directMode && playingId !== -1 && playSeq === directSeq) {
+            // direct upstream failed (mixed content, dead host, cert, geo-block,
+            // https->http downgrade) -> relay, and remember for a day
+            try { localStorage.setItem('pub_relay_' + playingId, String(Date.now())); } catch (e) { /* noop */ }
             directMode = false;
             const st = stations.find((x) => x.id === playingId);
             if (st) {
@@ -245,9 +248,18 @@
         }
         if (playingId !== -1) setStatus('Ошибка', 'поток недоступен ни напрямую, ни через релей');
     });
+    const relayRemembered = (id) => {
+        try {
+            const v = parseInt(localStorage.getItem('pub_relay_' + id) || '0', 10) || 0;
+            return v > 0 && (Date.now() - v) < 86400000;
+        } catch (e) { return false; }
+    };
     const playStation = (st) => {
         stopProbeLoop();
-        directMode = /^https:/i.test(st.url);
+        // direct-first, unless this station already proved unplayable directly
+        directMode = /^https:/i.test(st.url) && !relayRemembered(st.id);
+        directSeq = directMode ? ++playSeq : 0;
+        if (!directMode) playSeq++;
         playingId = st.id;
         lastStream = null;
         bandMax = 0;
