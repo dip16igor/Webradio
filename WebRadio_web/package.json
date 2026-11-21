@@ -20,6 +20,8 @@
     "express-validator": "^7.2.1",
     "helmet": "^8.1.0",
     "mqtt": "^5.14.0",
-    "ws": "^8.18.3"
+    "ws": "^8.18.3",
+    "bcryptjs": "^3.0.2",
+    "jsonwebtoken": "^9.0.2"
   }
 }

@@ -9,6 +9,8 @@ const WebSocket = require('ws');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const { body, validationResult } = require('express-validator');
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
 
 
 const app = express();
@@ -51,6 +53,77 @@ const MQTT_PREFIX = 'Home/WebRadio2';
 const MQTT_PREFIXES = ['Home/WebRadio1', 'Home/WebRadio2'];
 const STATIONS_FILE = process.env.STATIONS_FILE || 'data/stations.json';
 const MAX_STATIONS = 255;
+
+// --- Public player: per-user accounts with cookie sessions, own station lists ---
+// Disabled until PUB_JWT_SECRET is set (register/login answer 503 without it).
+const PUB_JWT_SECRET = process.env.PUB_JWT_SECRET || '';
+const PUB_INVITE_CODE = process.env.PUB_INVITE_CODE || '';
+const PUB_DIR = process.env.PUB_DIR || 'data/pub';
+const PUB_COOKIE = 'pub_session';
+const getCookies = (req) => {
+    const out = {};
+    for (const part of String(req.headers.cookie || '').split(';')) {
+        const i = part.indexOf('=');
+        if (i > 0) out[part.slice(0, i).trim()] = decodeURIComponent(part.slice(i + 1).trim());
+    }
+    return out;
+};
+const pubSessionUid = (req) => {
+    try {
+        const t = getCookies(req)[PUB_COOKIE];
+        if (!t || !PUB_JWT_SECRET) return null;
+        const p = jwt.verify(t, PUB_JWT_SECRET);
+        return p && p.uid ? String(p.uid) : null;
+    } catch (e) { return null; }
+};
+const pubSignUid = (uid) => jwt.sign({ uid: String(uid) }, PUB_JWT_SECRET, { expiresIn: '30d' });
+const PUB_COOKIE_OPTS = 'HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=2592000';
+let pubUsers = null; // { users: [{id, login, hash, createdAt}] }
+const pubUsersFile = () => path.join(PUB_DIR, 'users.json');
+const pubLoadUsers = () => {
+    if (pubUsers) return pubUsers;
+    try {
+        fs.mkdirSync(PUB_DIR, { recursive: true });
+        pubUsers = JSON.parse(fs.readFileSync(pubUsersFile(), 'utf8'));
+        if (!pubUsers || !Array.isArray(pubUsers.users)) pubUsers = { users: [] };
+    } catch (e) { pubUsers = { users: [] }; }
+    return pubUsers;
+};
+const pubSaveUsers = () => {
+    const tmp = pubUsersFile() + '.tmp';
+    fs.writeFileSync(tmp, JSON.stringify(pubUsers, null, 2), 'utf8');
+    fs.renameSync(tmp, pubUsersFile());
+};
+const pubStationsFile = (uid) => path.join(PUB_DIR, `stations_${String(uid).replace(/[^a-zA-Z0-9_-]/g, '')}.json`);
+const pubLoadStations = (uid) => {
+    try {
+        const d = JSON.parse(fs.readFileSync(pubStationsFile(uid), 'utf8'));
+        if (d && Array.isArray(d.stations)) return d;
+    } catch (e) { /* fall through */ }
+    return { version: 1, updatedAt: new Date().toISOString(), stations: [] };
+};
+const pubSaveStations = (uid, doc) => {
+    doc.updatedAt = new Date().toISOString();
+    const f = pubStationsFile(uid);
+    const tmp = f + '.tmp';
+    fs.writeFileSync(tmp, JSON.stringify(doc, null, 2), 'utf8');
+    fs.renameSync(tmp, f);
+    return doc;
+};
+const pubCheckStation = (s) => {
+    if (!s || typeof s.name !== 'string' || !s.name.trim() || s.name.trim().length > 60) return 'bad name';
+    if (typeof s.url !== 'string' || !/^https?:\/\//i.test(s.url) || s.url.length > 200) return 'bad url';
+    if (s.genre !== undefined && (typeof s.genre !== 'string' || s.genre.length > 40)) return 'bad genre';
+    return null;
+};
+const pubAuth = (req, res, next) => {
+    const uid = pubSessionUid(req);
+    if (!uid) return res.status(401).json({ success: false, message: 'Unauthorized: login required' });
+    const u = pubLoadUsers().users.find((x) => x.id === uid);
+    if (!u) return res.status(401).json({ success: false, message: 'Unauthorized: unknown user' });
+    req.pubUser = u;
+    next();
+};
 
 // --- Smart alarm: wake on a chosen station with volume ramp, then back ---
 // Schedule page: alarm.html. All logic server-side; no firmware changes.
@@ -797,6 +870,11 @@ const apiAuth = (req, res, next) => {
     // /preview authenticates itself (previewAuth allows a query-string token
     // because <audio> tags cannot set headers) - let it through here.
     if (req.path === '/preview') return next();
+    // Public player: logged-in users reach probe/geo/preview with their session
+    // cookie (<audio> and fetch send it automatically, no headers needed).
+    if ((req.path === '/preview' || req.path === '/probe' || req.path === '/geo') && pubSessionUid(req)) {
+        return next();
+    }
     const token = req.headers['x-auth-token'];
     if (token && token === SECRET_TOKEN) {
         return next();
@@ -1127,6 +1205,107 @@ apiRouter.post(
 );
 
 app.use('/api/radio', apiRouter);
+
+// Public player router: accounts + per-user station lists (cookie sessions).
+const pubRouter = express.Router();
+const pubLoginLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 10, standardHeaders: true, legacyHeaders: false });
+pubRouter.post('/register', pubLoginLimiter, async (req, res) => {
+    if (!PUB_JWT_SECRET) return res.status(503).json({ success: false, message: 'Public player disabled' });
+    const login = String(req.body && req.body.login || '').trim().toLowerCase();
+    const password = String(req.body && req.body.password || '');
+    const invite = String(req.body && req.body.invite || '');
+    if (!/^[a-z0-9_-]{3,32}$/.test(login)) return res.status(422).json({ success: false, message: 'Login: 3-32 chars, a-z 0-9 _ -' });
+    if (password.length < 8 || password.length > 200) return res.status(422).json({ success: false, message: 'Password: 8+ chars' });
+    if (PUB_INVITE_CODE && invite !== PUB_INVITE_CODE) return res.status(403).json({ success: false, message: 'Invite code required' });
+    const store = pubLoadUsers();
+    if (store.users.some((x) => x.login === login)) return res.status(409).json({ success: false, message: 'Login taken' });
+    const u = { id: crypto.randomBytes(8).toString('hex'), login, hash: await bcrypt.hash(password, 10), createdAt: new Date().toISOString() };
+    store.users.push(u);
+    try { pubSaveUsers(); } catch (e) { return res.status(500).json({ success: false, message: 'Failed to persist user' }); }
+    // seed: copy of the current shared station list
+    try {
+        const shared = JSON.parse(fs.readFileSync(STATIONS_FILE, 'utf8'));
+        if (shared && Array.isArray(shared.stations)) pubSaveStations(u.id, { version: 1, updatedAt: new Date().toISOString(), stations: shared.stations });
+    } catch (e) { /* seed is best-effort */ }
+    res.setHeader('Set-Cookie', `${PUB_COOKIE}=${pubSignUid(u.id)}; ${PUB_COOKIE_OPTS}`);
+    res.json({ success: true, data: { login: u.login } });
+});
+pubRouter.post('/login', pubLoginLimiter, async (req, res) => {
+    if (!PUB_JWT_SECRET) return res.status(503).json({ success: false, message: 'Public player disabled' });
+    const login = String(req.body && req.body.login || '').trim().toLowerCase();
+    const password = String(req.body && req.body.password || '');
+    const u = pubLoadUsers().users.find((x) => x.login === login);
+    if (!u || !(await bcrypt.compare(password, u.hash))) {
+        return res.status(401).json({ success: false, message: 'Bad login or password' });
+    }
+    res.setHeader('Set-Cookie', `${PUB_COOKIE}=${pubSignUid(u.id)}; ${PUB_COOKIE_OPTS}`);
+    res.json({ success: true, data: { login: u.login } });
+});
+pubRouter.post('/logout', (req, res) => {
+    res.setHeader('Set-Cookie', `${PUB_COOKIE}=; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=0`);
+    res.json({ success: true });
+});
+pubRouter.get('/me', pubAuth, (req, res) => {
+    res.json({ success: true, data: { login: req.pubUser.login } });
+});
+pubRouter.get('/stations', pubAuth, (req, res) => {
+    res.json({ success: true, data: pubLoadStations(req.pubUser.id) });
+});
+pubRouter.put('/stations', pubAuth, (req, res) => {
+    const list = req.body && req.body.stations;
+    if (!Array.isArray(list) || list.length > MAX_STATIONS) return res.status(422).json({ success: false, message: 'stations[] required, max 255' });
+    const seen = new Set();
+    let nextId = 1;
+    for (const s of list) {
+        const err = pubCheckStation(s);
+        if (err) return res.status(422).json({ success: false, message: err });
+        if (s.id === undefined || s.id === null) { s.id = nextId; }
+        if (!Number.isInteger(s.id) || seen.has(s.id)) return res.status(422).json({ success: false, message: 'bad/duplicate id' });
+        seen.add(s.id);
+        if (s.id >= nextId) nextId = s.id + 1;
+    }
+    const doc = pubLoadStations(req.pubUser.id);
+    doc.version = (doc.version || 0) + 1;
+    doc.stations = list.map((s) => ({ id: s.id, name: s.name.trim(), url: s.url, ...(s.genre ? { genre: s.genre } : {}) }));
+    res.json({ success: true, data: pubSaveStations(req.pubUser.id, doc) });
+});
+pubRouter.post('/stations', pubAuth, (req, res) => {
+    const err = pubCheckStation(req.body || {});
+    if (err) return res.status(422).json({ success: false, message: err });
+    const doc = pubLoadStations(req.pubUser.id);
+    if (doc.stations.length >= MAX_STATIONS) return res.status(422).json({ success: false, message: 'station limit reached' });
+    if (doc.stations.some((x) => x.url === req.body.url)) return res.status(409).json({ success: false, message: 'duplicate url' });
+    const id = doc.stations.reduce((m, x) => Math.max(m, x.id || 0), 0) + 1;
+    doc.stations.push({ id, name: req.body.name.trim(), url: req.body.url, ...(req.body.genre ? { genre: req.body.genre } : {}) });
+    doc.version = (doc.version || 0) + 1;
+    res.json({ success: true, data: pubSaveStations(req.pubUser.id, doc) });
+});
+pubRouter.patch('/stations/:id', pubAuth, (req, res) => {
+    const doc = pubLoadStations(req.pubUser.id);
+    const st = doc.stations.find((x) => String(x.id) === String(req.params.id));
+    if (!st) return res.status(404).json({ success: false, message: 'No such station' });
+    const upd = {};
+    if (req.body.name !== undefined) upd.name = req.body.name;
+    if (req.body.url !== undefined) upd.url = req.body.url;
+    if (req.body.genre !== undefined) upd.genre = req.body.genre;
+    const err = pubCheckStation({ name: upd.name !== undefined ? upd.name : st.name, url: upd.url !== undefined ? upd.url : st.url, genre: upd.genre !== undefined ? upd.genre : st.genre });
+    if (err) return res.status(422).json({ success: false, message: err });
+    if (upd.url && doc.stations.some((x) => x !== st && x.url === upd.url)) return res.status(409).json({ success: false, message: 'duplicate url' });
+    Object.assign(st, upd.name !== undefined ? { name: upd.name.trim() } : {}, upd.url !== undefined ? { url: upd.url } : {}, upd.genre !== undefined ? (upd.genre ? { genre: upd.genre } : { genre: undefined }) : {});
+    if ('genre' in st && st.genre === undefined) delete st.genre;
+    doc.version = (doc.version || 0) + 1;
+    res.json({ success: true, data: pubSaveStations(req.pubUser.id, doc) });
+});
+pubRouter.delete('/stations/:id', pubAuth, (req, res) => {
+    const doc = pubLoadStations(req.pubUser.id);
+    const i = doc.stations.findIndex((x) => String(x.id) === String(req.params.id));
+    if (i < 0) return res.status(404).json({ success: false, message: 'No such station' });
+    if (doc.stations.length <= 1) return res.status(422).json({ success: false, message: 'Cannot delete the last station' });
+    doc.stations.splice(i, 1);
+    doc.version = (doc.version || 0) + 1;
+    res.json({ success: true, data: pubSaveStations(req.pubUser.id, doc) });
+});
+app.use('/api/pub', pubRouter);
 
 // --- Audio relay for auth-walled streams (e.g. Zeno) ---
 // The ESP32 firmware sends bare requests (no Referer/UA) and cannot follow
