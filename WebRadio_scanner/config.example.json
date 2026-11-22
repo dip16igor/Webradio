@@ -1,0 +1,14 @@
+{
+  "db_path": "data/scanner.db",
+  "timeout_sec": 12,
+  "workers": 8,
+  "radiobrowser_host": "de1.api.radio-browser.info",
+  "radiobrowser_tags": ["chillout", "ambient", "lounge", "jazz", "downtempo", "lofi"],
+  "radiobrowser_limit_per_tag": 100,
+  "icecast_servers": [
+    "https://tower.hayva.ru/status-json.xsl"
+  ],
+  "geo_cache_hours": 24,
+  "min_bitrate": 48,
+  "max_bitrate": 320
+}

@@ -1,0 +1,11 @@
+# root: никогда не коммитить живые конфиги, ключи и базы
+config.json
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+.env
+__pycache__/
+*.pyc
+# Android-секреты с кредами (уже в истории — см. Secrets.kt.example как шаблон)
+WebRadio_android/app/src/main/java/com/dip16/webradio/Secrets.kt
