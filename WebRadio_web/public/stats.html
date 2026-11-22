@@ -10,22 +10,8 @@
     <link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png">
     <link rel="icon" type="image/png" sizes="16x16" href="favicon-16x16.png">
     <link rel="manifest" href="site.webmanifest">
-    <link rel="stylesheet" href="style.css">
-    <style>
-        .header-actions { display: flex; gap: 8px; align-items: center; }
-        .icon-btn {
-            background: #333;
-            color: #fff;
-            border: 1px solid #555;
-            border-radius: 4px;
-            padding: 4px 8px;
-            cursor: pointer;
-            font-size: 13px;
-        }
-        .icon-btn:hover { background: #444; }
-        .icon-btn.danger { background: #7a1f1f; border-color: #a33; }
-        .icon-btn:disabled { opacity: 0.4; cursor: not-allowed; }
-    </style>
+    <link rel="stylesheet" href="style.css?v=2">
+    <script src="theme.js"></script>
 </head>
 
 <body>
@@ -34,6 +20,7 @@
         <div class="page-header">
             <h1>Listening Statistics</h1>
             <div class="header-actions">
+                <button data-theme-btn class="icon-btn" title="Тёмная / светлая тема">🌙</button>
                 <button id="btn-reset-stats" class="icon-btn danger" title="Delete all accumulated statistics">Reset</button>
                 <a class="admin-link" href="index.html" title="Back to radio control">&#8592; Back</a>
             </div>

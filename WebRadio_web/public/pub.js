@@ -13,7 +13,7 @@
         const cur = document.documentElement.getAttribute('data-theme') === 'light' ? 'light' : 'dark';
         const next = cur === 'light' ? 'dark' : 'light';
         document.documentElement.setAttribute('data-theme', next);
-        try { localStorage.setItem('pub_theme', next); } catch (e) { /* noop */ }
+        try { localStorage.setItem('webradio_theme', next); } catch (e) { /* noop */ }
         applyThemeIcon();
     });
     applyThemeIcon();

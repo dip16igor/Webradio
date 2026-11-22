@@ -7,9 +7,10 @@
     <meta name="theme-color" content="#1a1a1a">
     <title>ESP32 WebRadio - Station Manager</title>
     <link rel="manifest" href="site.webmanifest">
-    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="style.css?v=2">
     <link rel="stylesheet" href="leaflet.css?v=1">
     <link rel="icon" href="radio.svg" type="image/svg+xml">
+    <script src="theme.js"></script>
     <style>
         .admin-toolbar {
             display: flex;
@@ -31,14 +32,14 @@
 
         #station-table th,
         #station-table td {
-            border: 1px solid #444;
+            border: 1px solid var(--border);
             padding: 4px 6px;
             text-align: left;
         }
 
         #station-table th {
-            background: #222;
-            color: #fff;
+            background: var(--row-bg);
+            color: var(--text);
             position: sticky;
             top: 0;
         }
@@ -46,9 +47,9 @@
         #station-table input {
             width: 100%;
             box-sizing: border-box;
-            background: #1a1a1a;
-            color: #eee;
-            border: 1px solid #555;
+            background: var(--card);
+            color: var(--text);
+            border: 1px solid var(--input-border);
             border-radius: 4px;
             padding: 4px 6px;
             font-size: 13px;
@@ -57,7 +58,7 @@
         #station-table .num {
             width: 40px;
             text-align: center;
-            color: #aaa;
+            color: var(--muted);
         }
 
         #station-table .col-name {
@@ -77,30 +78,6 @@
             white-space: nowrap;
         }
 
-        .icon-btn {
-            background: #333;
-            color: #fff;
-            border: 1px solid #555;
-            border-radius: 4px;
-            padding: 4px 8px;
-            cursor: pointer;
-            font-size: 13px;
-        }
-
-        .icon-btn:hover {
-            background: #444;
-        }
-
-        .icon-btn.danger {
-            background: #7a1f1f;
-            border-color: #a33;
-        }
-
-        .icon-btn:disabled {
-            opacity: 0.4;
-            cursor: not-allowed;
-        }
-
         #status {
             margin: 10px 0;
             padding: 8px 12px;
@@ -110,18 +87,18 @@
 
         #status.ok {
             display: block;
-            background: #143d20;
-            color: #7ddb9b;
+            background: var(--ok-bg);
+            color: var(--ok-text);
         }
 
         #status.err {
             display: block;
-            background: #4a1414;
-            color: #f2a1a1;
+            background: var(--err-bg);
+            color: var(--err-text);
         }
 
         #meta {
-            color: #999;
+            color: var(--muted);
             font-size: 13px;
             margin-bottom: 10px;
         }
@@ -135,8 +112,8 @@
         }
 
         .card {
-            background: #1a1a1a;
-            border: 1px solid #555;
+            background: var(--card);
+            border: 1px solid var(--border);
             border-radius: 6px;
             padding: 8px 10px;
         }
@@ -199,13 +176,13 @@
             align-items: center;
             justify-content: center;
             background: transparent;
-            color: #eee;
-            border: 1px solid rgba(238, 238, 238, 0.35);
+            color: var(--text);
+            border: 1px solid var(--input-border);
             border-radius: 4px;
             cursor: pointer;
         }
-        .cover-icon-btn:hover { border-color: #7ddb9b; color: #7ddb9b; }
-        .cover-icon-btn.active { color: #7ddb9b; border-color: #7ddb9b; }
+        .cover-icon-btn:hover { border-color: var(--ok-text); color: var(--ok-text); }
+        .cover-icon-btn.active { color: var(--ok-text); border-color: var(--ok-text); }
         #map-style-btn { top: 34px; }
         .cover-map {
             position: absolute;
@@ -230,7 +207,7 @@
             position: absolute;
             z-index: 600;
             font: 11px "Courier New", monospace;
-            color: #7ddb9b;
+            color: var(--ok-text);
             pointer-events: none;
             text-shadow: 0 0 4px #000, 0 0 4px #000;
         }
@@ -350,17 +327,17 @@
             height: 72px;
             display: block;
             background: #111;
-            border: 1px solid #333;
+            border: 1px solid var(--border);
             border-radius: 4px;
         }
 
         .preview-state {
-            color: #7ddb9b;
+            color: var(--ok-text);
             font-weight: 600;
         }
 
         .preview-state.loading { color: #f2c94c; }
-        .preview-state.error { color: #f2a1a1; }
+        .preview-state.error { color: var(--err-text); }
 
         .preview-station,
         .preview-track,
@@ -370,15 +347,15 @@
             text-overflow: ellipsis;
         }
 
-        .preview-station { color: #eee; font-weight: 600; }
+        .preview-station { color: var(--text); font-weight: 600; }
 
-        .preview-track { color: #eee; }
-        .preview-codec { color: #999; font-size: 12px; }
-        .preview-codec a { color: #7ddb9b; }
+        .preview-track { color: var(--text); }
+        .preview-codec { color: var(--muted); font-size: 12px; }
+        .preview-codec a { color: var(--ok-text); }
 
         .preview-vol-row { display: flex; align-items: center; gap: 6px; margin-top: 4px; }
         .preview-vol-icon { font-size: 13px; }
-        #preview-vol { flex: 1; accent-color: #7ddb9b; height: 18px; }
+        #preview-vol { flex: 1; accent-color: var(--ok-text); height: 18px; }
 
         .page-header h2 {
             margin: 0;
@@ -387,7 +364,7 @@
         }
 
         #meta {
-            color: #ccc;
+            color: var(--muted);
             margin: 0 0 10px;
         }
 
@@ -404,15 +381,15 @@
             width: 22px;
             height: 22px;
             padding: 0;
-            background: #111;
-            color: #eee;
-            border: 1px solid #555;
+            background: var(--btn-bg);
+            color: var(--btn-text);
+            border: 1px solid var(--input-border);
             border-radius: 4px;
             font-size: 14px;
             line-height: 1;
             cursor: pointer;
         }
-        #spec-menu-btn:hover { border-color: #7ddb9b; color: #7ddb9b; }
+        #spec-menu-btn:hover { border-color: var(--ok-text); color: var(--ok-text); }
         .spec-menu {
             position: absolute;
             top: 32px;
@@ -422,20 +399,20 @@
             flex-direction: column;
             gap: 8px;
             min-width: 250px;
-            background: #1a1a1a;
-            border: 1px solid #555;
+            background: var(--card);
+            border: 1px solid var(--input-border);
             border-radius: 6px;
             box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
             padding: 10px 12px;
             font-size: 11px;
-            color: #999;
+            color: var(--muted);
         }
         .spec-menu[hidden] { display: none; }
         .spec-menu label { display: grid; grid-template-columns: 62px 1fr 48px; gap: 8px; align-items: center; white-space: nowrap; }
-        .spec-menu input[type="range"] { width: 100%; accent-color: #7ddb9b; height: 16px; }
-        .spec-menu span { color: #ccc; text-align: right; }
+        .spec-menu input[type="range"] { width: 100%; accent-color: var(--ok-text); height: 16px; }
+        .spec-menu span { color: var(--text); text-align: right; }
 
-        tr.playing td { background: #1d3a24; }
+        tr.playing td { background: var(--row-playing); }
     </style>
 </head>
 
@@ -444,7 +421,10 @@
 
         <div class="page-header">
             <h2>Station Manager</h2>
-            <a class="admin-link" href="index.html" title="Back to radio control">&#8592; Back</a>
+            <div class="header-actions">
+                <button data-theme-btn class="icon-btn" title="Тёмная / светлая тема">🌙</button>
+                <a class="admin-link" href="index.html" title="Back to radio control">&#8592; Back</a>
+            </div>
         </div>
 
         <div id="meta">Loading station list...</div>
