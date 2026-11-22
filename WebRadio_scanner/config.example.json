@@ -1,7 +1,7 @@
 {
   "db_path": "data/scanner.db",
   "web_port": 3100,
-  "webradio_api": "http://host.docker.internal:3000/api/radio",
+  "webradio_api": "https://mirrorhub.space:8443/webradio/api/radio",
   "timeout_sec": 12,
   "workers": 8,
   "radiobrowser_host": "de1.api.radio-browser.info",

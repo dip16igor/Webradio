@@ -209,7 +209,7 @@ def wr_request(base, method, path, token, body=None, timeout=20):
 def push_to_webradio(cfg, ids, token):
     """Append отмеченных в конец списка WebRadio. Возвращает отчёт."""
     base = (cfg.get("webradio_api") or
-            "http://host.docker.internal:3000/api/radio").rstrip("/")
+            "https://mirrorhub.space:8443/webradio/api/radio").rstrip("/")  # через Caddy: порт 3000 слушает только 127.0.0.1 хоста, из контейнера недоступен
     cur = wr_request(base, "GET", "/stations", token)
     if not cur.get("success"):
         raise RuntimeError(cur.get("message") or "stations failed")
