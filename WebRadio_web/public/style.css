@@ -301,7 +301,7 @@ h2 {
     border-radius: 8px;
     padding: 12px;
     min-width: 0;
-    overflow-x: hidden;
+    overflow: hidden;
     height: 316px;
     box-sizing: border-box;
 }
