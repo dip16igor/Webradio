@@ -111,15 +111,28 @@ def _process_one_inner(con, item, cfg):
         "lastcheck": datetime.datetime.utcnow().isoformat(timespec="seconds"),
         "lastcheckok": ok,
     }
-    sid = dbmod.upsert_station(con, row)
-    dbmod.add_check(con, sid, ok, pr.get("http_code"), pr.get("measured_kbps"),
-                    pr.get("streamtitle"))
+    with _DB_LOCK:
+        geo = geomod.geo_lookup(con, url, cache_hours=cfg.get("geo_cache_hours", 24))
+        row["server_ip"] = geo.get("ip")
+        if not row.get("country"):
+            row["country"] = geo.get("country")
+        row["city"] = geo.get("city")
+        row["lat"] = geo.get("lat")
+        row["lon"] = geo.get("lon")
+        sid = dbmod.upsert_station(con, row)
+        dbmod.add_check(con, sid, ok, pr.get("http_code"), pr.get("measured_kbps"),
+                        pr.get("streamtitle"))
+        con.commit()
     return sid, ok, pr.get("http_code")
 
 
 def cmd_once(cfg, limit=None, probe_only=False):
     con = dbmod.connect(cfg["db_path"])
     dbmod.init_db(con)
+    # geo-кэш создаём заранее в главном потоке, чтобы воркеры не гонялись за DDL
+    with _DB_LOCK:
+        geomod._ensure_cache(con)
+        con.commit()
     if probe_only:
         cur = con.execute(
             "SELECT url, name, description, genre, codec, bitrate, country, source "
@@ -133,33 +146,18 @@ def cmd_once(cfg, limit=None, probe_only=False):
     print(f"[pipeline] seeds: {len(seeds)}", flush=True)
     ok_n = 0
     with cf.ThreadPoolExecutor(max_workers=cfg.get("workers", 8)) as ex:
-        futs = [ex.submit(process_one, dbmod.connect(cfg["db_path"]), s, cfg) for s in seeds]
+        futs = [ex.submit(process_one, cfg["db_path"], s, cfg) for s in seeds]
         for f in cf.as_completed(futs):
             try:
-                _sid, ok, code = f.result()
-                # каждый воркер пишет в своё соединение; коммитим в главном
+                _sid, ok, _code = f.result()
                 ok_n += ok
             except Exception as e:
                 print(f"[pipeline] item failed: {type(e).__name__}: {e}", flush=True)
-    # upsert/add_check внутри process_one коммитятся? нет — коммитим здесь не выйдет
-    # (соединения воркеров свои). Поэтому process_one делает commit сам (см. ниже).
+    # запись и commit — внутри process_one под _DB_LOCK; здесь только итог
     cur = con.execute("SELECT COUNT(*), SUM(lastcheckok) FROM stations")
     total, oks = cur.fetchone()
     print(f"[pipeline] done. ok in batch: {ok_n}. DB total: {total}, alive: {oks}.", flush=True)
     con.close()
-
-
-# process_one пишет через собственное соединение воркера: нужен commit внутри.
-_orig_process_one = process_one
-
-
-def process_one(con, item, cfg):  # noqa: F811 — обёртка с commit
-    sid, ok, code = _orig_process_one(con, item, cfg)
-    try:
-        con.commit()
-    finally:
-        con.close()
-    return sid, ok, code
 
 
 def main():
