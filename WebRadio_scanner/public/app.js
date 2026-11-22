@@ -79,7 +79,8 @@ async function load() {
         `<td><input type="checkbox" data-id="${r.id}" ${state.selected.has(r.id) ? "checked" : ""}></td>` +
         `<td class="st"><b>${esc(r.name || r.url)}</b><small>${esc(hostOf(r.url))}</small>` +
         (r.streamtitle ? `<div class="track">♪ ${esc(r.streamtitle)}</div>` : "") +
-        (r.approved ? ' <span class="badge appr">approved</span>' : "") + `</td>` +
+        (r.approved ? ' <span class="badge appr">approved</span>' : "") +
+        (/\.m3u8($|\?)/i.test(r.url || "") ? ' <span class="badge warn">HLS</span>' : "") + `</td>` +
         `<td>${r.genre ? esc(r.genre) : '<span class="badge">?</span>'}</td>` +
         `<td>${streamCell(r)}</td>` +
         `<td>${geoCell(r)}</td>` +
@@ -193,14 +194,21 @@ $("rows").addEventListener("change", (e) => {
   c.checked ? state.selected.add(id) : state.selected.delete(id);
   $("count").textContent = $("count").textContent.replace(/\(отмечено: \d+\)/, `(отмечено: ${state.selected.size})`);
 });
+function playUrl(id, url, mode) {
+  const src = mode === "direct" ? url : api("relay?url=") + encodeURIComponent(url);
+  player.src = src;
+  player.play().then(() => { state.playingId = id; load(); })
+    .catch(() => {
+      if (mode === "direct") playUrl(id, url, "relay"); // direct-first, затем свой релей
+      else showErr("Не играет ни напрямую, ни через релей — битая ссылка или защита апстрима (HLS тоже пока не играется).");
+    });
+}
 $("rows").addEventListener("click", (e) => {
   const b = e.target.closest("button.play");
   if (!b) return;
   const id = +b.dataset.id, url = b.dataset.url;
   if (state.playingId === id) { player.pause(); state.playingId = null; load(); return; }
-  player.src = url;
-  player.play().then(() => { state.playingId = id; load(); })
-    .catch(() => showErr("Не играет из https-страницы (http-поток) или битая ссылка. https-потоки играют напрямую."));
+  playUrl(id, url, url.startsWith("https://") ? "direct" : "relay");
 });
 player.onended = player.onerror = () => { state.playingId = null; load(); };
 

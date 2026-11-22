@@ -19,6 +19,8 @@ import json
 import os
 import threading
 import time
+import urllib.error
+import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse, parse_qs
 
@@ -152,6 +154,39 @@ def recheck_worker(ids):
             _scan["running"] = False
 
 
+RELAY_UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+            "Chrome/126.0.0.0 Safari/537.36")
+
+
+def relay_open(url, range_hdr=None, timeout=12):
+    """Открыть upstream для релея. Возвращает ответ urllib (с редиректами)."""
+    from src import geo as geomod
+    from urllib.parse import urlparse as _up
+    host = _up(url).hostname or ""
+    if not host:
+        raise ValueError("bad url")
+    ip = geomod._resolve(host)
+    if not ip or geomod._is_private_ip(ip):
+        raise ValueError("private/blocked host")
+    headers = {"User-Agent": RELAY_UA, "Accept": "*/*",
+               "Accept-Encoding": "identity", "Connection": "close",
+               "Icy-MetaData": "0"}  # важно: без интерливинга метаданных, иначе декодер зациклится
+    if range_hdr:
+        headers["Range"] = range_hdr
+    last_err = None
+    for attempt in (0, 1):
+        try:
+            return urllib.request.urlopen(
+                urllib.request.Request(url, headers=headers), timeout=timeout)
+        except urllib.error.HTTPError as e:
+            last_err = e
+            if e.code in (401, 403) and attempt == 0:
+                time.sleep(1.5)  # Zeno-волны 401: повтор часто проходит
+                continue
+            raise
+    raise last_err
+
+
 class Handler(BaseHTTPRequestHandler):
     server_version = "ScannerHTTP/1.0"
 
@@ -224,8 +259,49 @@ class Handler(BaseHTTPRequestHandler):
         elif u.path == "/api/scan":
             with _scan_lock:
                 self._json(dict(_scan))
+        elif u.path == "/relay":
+            params = parse_qs(u.query)
+            self._relay((params.get("url") or [""])[0], self.headers.get("Range"))
         else:
             self._static(u.path)
+
+    def _relay(self, url, range_hdr):
+        if not url or not url.startswith(("http://", "https://")):
+            return self._json({"error": "bad url"}, 400)
+        try:
+            up = relay_open(url, range_hdr)
+        except ValueError:
+            return self._json({"error": "blocked host"}, 403)
+        except urllib.error.HTTPError as e:
+            return self._json({"error": f"upstream {e.code}"}, 502)
+        except Exception as e:
+            return self._json({"error": f"upstream {type(e).__name__}"}, 502)
+        try:
+            ctype = up.headers.get("Content-Type", "audio/mpeg")
+            if up.status == 206 and up.headers.get("Content-Range"):
+                self.send_response(206)
+                self.send_header("Content-Range", up.headers["Content-Range"])
+                if up.headers.get("Content-Length"):
+                    self.send_header("Content-Length", up.headers["Content-Length"])
+            else:
+                self.send_response(200)
+            self.send_header("Content-Type", ctype)
+            self.send_header("Cache-Control", "no-store")
+            self.send_header("Connection", "close")
+            self.end_headers()
+            while True:
+                chunk = up.read(65536)
+                if not chunk:
+                    break
+                try:
+                    self.wfile.write(chunk)
+                except (BrokenPipeError, ConnectionResetError):
+                    break
+        finally:
+            try:
+                up.close()
+            except Exception:
+                pass
 
     def do_POST(self):
         u = urlparse(self.path)
