@@ -1474,6 +1474,7 @@ const openPreviewUpstream = (url, timeoutMs, wantMeta) => new Promise((resolve, 
 const sniffStream = (up, metaint) => new Promise((resolve) => {
     const out = { title: null, audio: Buffer.alloc(0) };
     let audioTotal = 0;
+    let tFirstAudio = 0;
     let state = metaint > 0 ? 'audio' : 'raw';
     let need = metaint;
     let metaNeed = 0;
@@ -1484,11 +1485,13 @@ const sniffStream = (up, metaint) => new Promise((resolve) => {
         finished = true;
         clearTimeout(timer);
         try { up.removeListener('data', onData); } catch (e) { /* noop */ }
+        out.audioBytes = audioTotal;
         resolve(out);
     };
     const timer = setTimeout(finish, 8000);
     const haveEnough = () => audioTotal >= 8192 && (metaint === 0 || out.title !== null);
     const onData = (chunk) => {
+        if (!tFirstAudio) { tFirstAudio = Date.now(); out.tFirstAudio = tFirstAudio; }
         let off = 0;
         while (off < chunk.length) {
             if (state === 'audio') {
@@ -1527,10 +1530,16 @@ const sniffStream = (up, metaint) => new Promise((resolve) => {
     up.on('end', finish);
 });
 
-// Parse the first MP3 or ADTS/AAC frame header: real sample rate + channels.
+// Parse the first MP3 or ADTS/AAC frame header: real sample rate + channels
+// + nominal bitrate (exact for CBR: MP3 table, AAC frame-length formula).
 const parseAudioFrame = (buf) => {
     const SFR = [96000, 88200, 64000, 48000, 44100, 32000, 24000, 22050, 16000, 12000, 11025, 8000, 7350];
     const MP3SR = { 3: [44100, 48000, 32000], 2: [22050, 24000, 16000], 0: [11025, 12000, 8000] };
+    // bitrate tables, kbps: [MPEG1|MPEG2] x [Layer I|II|III], index 0 = free, 15 = bad
+    const MP3BR = {
+        3: { 3: [0, 32, 64, 96, 128, 160, 192, 224, 256, 288, 320, 352, 384, 416, 448, 0], 2: [0, 32, 48, 56, 64, 80, 96, 112, 128, 160, 192, 224, 256, 320, 384, 0], 1: [0, 32, 40, 48, 56, 64, 80, 96, 112, 128, 160, 192, 224, 256, 320, 0] },
+        2: { 3: [0, 32, 48, 56, 64, 80, 96, 112, 128, 144, 160, 176, 192, 224, 256, 0], 2: [0, 8, 16, 24, 32, 40, 48, 56, 64, 80, 96, 112, 128, 144, 160, 0], 1: [0, 8, 16, 24, 32, 40, 48, 56, 64, 80, 96, 112, 128, 144, 160, 0] }
+    };
     for (let i = 0; i + 4 < buf.length; i++) {
         if (buf[i] !== 0xFF || (buf[i + 1] & 0xE0) !== 0xE0) continue;
         const b1 = buf[i + 1];
@@ -1539,7 +1548,10 @@ const parseAudioFrame = (buf) => {
             const ch = ((buf[i + 2] & 0x01) << 2) | ((buf[i + 3] & 0xC0) >> 6);
             if (sfi <= 12 && ch >= 1 && ch <= 7) {
                 const prof = (buf[i + 2] & 0xC0) >> 6;
-                return { container: 'ADTS', codec: prof === 1 ? 'AAC-LC' : 'AAC', sampleRate: SFR[sfi], channels: ch };
+                const sr = SFR[sfi];
+                const frameLen = ((buf[i + 3] & 0x03) << 11) | (buf[i + 4] << 3) | ((buf[i + 5] & 0xE0) >> 5);
+                const br = frameLen > 0 ? Math.round(frameLen * 8 * sr / 1024 / 100) / 10 : null;
+                return { container: 'ADTS', codec: prof === 1 ? 'AAC-LC' : 'AAC', sampleRate: sr, channels: ch, bitrate: br };
             }
         }
         const ver = (b1 & 0x18) >> 3;
@@ -1548,7 +1560,10 @@ const parseAudioFrame = (buf) => {
             const srIdx = (buf[i + 2] & 0x0C) >> 2;
             if (srIdx <= 2) {
                 const mode = (buf[i + 3] & 0xC0) >> 6;
-                return { container: 'MP3', codec: 'MP3', sampleRate: MP3SR[ver][srIdx], channels: mode === 3 ? 1 : 2 };
+                const brIdx = (buf[i + 2] & 0xF0) >> 4;
+                const table = (MP3BR[ver === 3 ? 3 : 2] || {})[layer];
+                const br = (table && brIdx >= 1 && brIdx <= 14) ? table[brIdx] : null;
+                return { container: 'MP3', codec: 'MP3', sampleRate: MP3SR[ver][srIdx], channels: mode === 3 ? 1 : 2, bitrate: br || null };
             }
         }
     }
@@ -1628,16 +1643,19 @@ apiRouter.get('/probe', async (req, res) => {
         const sniffed = await sniffStream(up, Number.isNaN(metaint) ? 0 : metaint);
         const title = sniffed.title;
         const fmt = parseAudioFrame(sniffed.audio);
-        const ms = Math.max(Date.now() - t0, 1);
-        const sockBytes = (up.socket && up.socket.bytesRead) || 0;
-        const kbps = Math.round(sockBytes * 8 / ms * 10) / 10;
+        // measured over the AUDIO window only (excludes DNS/connect/TLS +
+        // HTTP headers that used to inflate short probes ~10x); reported only
+        // when the window spans 1.5 s+ so burst delivery can't skew it
+        const audioMs = Math.max(Date.now() - (sniffed.tFirstAudio || t0), 1);
+        const kbps = audioMs >= 1500 ? Math.round((sniffed.audioBytes || 0) * 8 / audioMs * 10) / 10 : null;
         const out = {
             success: true,
             data: {
                 url: gate.url,
                 httpStatus: up.statusCode,
                 contentType: ct || null,
-                codec,
+                codec: (fmt && fmt.codec) || codec,
+                bitrate: (fmt && fmt.bitrate) || null,
                 measuredKbps: kbps || null,
                 sampleRate: fmt ? fmt.sampleRate : null,
                 channels: fmt ? fmt.channels : null,

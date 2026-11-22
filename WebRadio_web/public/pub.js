@@ -307,8 +307,12 @@
             const d = json.data || {};
             const title = d.streamTitle || st.name;
             trackEl.textContent = title + (directMode ? '' : ' · релей');
-            lastStream = { codec: d.codec, bitrate: d.bitrate, srHz: d.srHz, ch: d.ch };
-            refreshMeta();
+            if (d.codec || d.bitrate || d.measuredKbps || d.sampleRate || d.channels || d.icyBr) {
+                const br = d.bitrate ? `${d.bitrate} kbps` : (d.icyBr ? `${d.icyBr} kbps` : (d.measuredKbps ? `~${d.measuredKbps} kbps` : null));
+                const ch = d.channels === 2 ? 'Stereo' : (d.channels === 1 ? 'Mono' : (d.channels ? `${d.channels}ch` : null));
+                lastStream = { codec: d.codec, bitrate: br, srHz: d.sampleRate || null, ch };
+                refreshMeta();
+            }
             if (d.streamTitle) fetchCover(d.streamTitle);
         } catch (e) { /* keep playing on probe errors */ }
     };

@@ -73,7 +73,7 @@
                 if (num !== lastNum) return;
                 var d = j && j.data;
                 if (!(j && j.success && d)) { if (pel) pel.textContent = '—'; return; }
-                var br = d.icyBr ? d.icyBr + ' kbps' : (d.measuredKbps ? '~' + d.measuredKbps + ' kbps' : null);
+                var br = d.bitrate ? d.bitrate + ' kbps' : (d.icyBr ? d.icyBr + ' kbps' : (d.measuredKbps ? '~' + d.measuredKbps + ' kbps' : null));
                 var ch = d.channels === 2 ? 'Stereo' : (d.channels === 1 ? 'Mono' : (d.channels ? d.channels + 'ch' : null));
                 var sr = fmtKHz(d.sampleRate);
                 var parts = [d.codec, br, sr, ch].filter(Boolean);
