@@ -365,8 +365,8 @@ h2 {
 }
 
 .station-wheel {
-    padding-top: 100px; /* 2 items * 50px to center the first real item */
-    padding-bottom: 100px; /* 2 items * 50px to center the last real item */
+    padding-top: 121px; /* (292 - 50) / 2: center first item at scrollTop 0 */
+    padding-bottom: 121px; /* center last item at max scroll */
 }
 
 .station-item {

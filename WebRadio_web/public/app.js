@@ -411,12 +411,14 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // One wheel notch = one station, animated (~300ms) so the rotation is visible.
+    // Fast spinning accelerates: 2-5 stations per step.
     let wheelBusy = false, wheelPending = 0, wheelAcc = 0, wheelAccT = 0;
-    const wheelStep = (dir) => {
-        if (wheelBusy) { wheelPending = Math.max(-6, Math.min(6, wheelPending + dir)); return; }
+    let wheelBoost = 1, wheelLastT = 0;
+    const wheelStep = (dir, n) => {
+        if (wheelBusy) { wheelPending = Math.max(-12, Math.min(12, wheelPending + dir * n)); return; }
         const from = stationSelector.scrollTop;
         const idx = Math.round(from / STATION_ITEM_HEIGHT);
-        const next = Math.min(Math.max(idx + dir, 0), TOTAL_STATIONS - 1);
+        const next = Math.min(Math.max(idx + dir * n, 0), TOTAL_STATIONS - 1);
         const to = next * STATION_ITEM_HEIGHT;
         if (to === from) { updateSelectedStation(false); return; }
         wheelBusy = true;
@@ -434,7 +436,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (wheelPending !== 0) {
                 const d = wheelPending > 0 ? 1 : -1;
                 wheelPending -= d;
-                wheelStep(d);
+                wheelStep(d, 1);
             }
         };
         requestAnimationFrame(fr);
@@ -446,7 +448,10 @@ document.addEventListener('DOMContentLoaded', () => {
         if (Math.abs(wheelAcc) >= 30) {
             const d = wheelAcc > 0 ? 1 : -1;
             wheelAcc = 0;
-            wheelStep(d);
+            const now = performance.now();
+            wheelBoost = (now - wheelLastT < 150) ? Math.min(wheelBoost + 1, 5) : 1;
+            wheelLastT = now;
+            wheelStep(d, wheelBoost);
         } else {
             wheelAccT = setTimeout(() => { wheelAcc = 0; }, 120);
         }
