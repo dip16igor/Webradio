@@ -88,7 +88,7 @@ async function load() {
         `<td>${geoCell(r)}</td>` +
         `<td>${adsCell(r)}</td>` +
         `<td><small>${esc((r.lastcheck || "").replace("T", " "))}<br>${r.lastcheckok ? "OK" : "FAIL"}</small></td>` +
-        `<td><button class="play ghost" data-id="${r.id}" data-url="${esc(r.url)}">▶</button></td>`;
+        `<td><button class="play ghost" data-id="${r.id}" data-url="${esc(r.url)}">▶</button> <button class="add ghost" data-id="${r.id}" title="Добавить в конец списка WebRadio">+</button></td>`;
       tb.appendChild(tr);
     }
     $("count").textContent = `Показано ${d.rows.length} из ${d.total} (отмечено: ${state.selected.size})`;
@@ -165,8 +165,45 @@ $("approveBtn").onclick = async () => {
     loadStatus();
   } catch (e) { showErr("Approve: " + e.message); }
 };
+function getToken() {
+  // Station Manager кладёт токен в secret_token — origin общий, читаем его же.
+  return localStorage.getItem("secret_token") || localStorage.getItem("webradio_token") || "";
+}
+function pushOne(id, btn) {
+  const token = getToken();
+  if (!token) { // токена ещё нигде нет — спросить один раз через модалку
+    state.pendingPush = [id];
+    $("pushText").textContent = "В конец списка WebRadio добавится 1 станция.";
+    $("pushResult").textContent = "";
+    $("pushToken").value = "";
+    $("pushModal").classList.remove("hidden");
+    return;
+  }
+  btn.disabled = true;
+  jpost("push", { ids: [id], token }).then((r) => {
+    if (r.added_n) { btn.textContent = "✓"; btn.title = "В списке WebRadio"; }
+    else if (r.skipped_dup.length) { btn.textContent = "dup"; btn.title = "Уже в списке"; }
+    else if (r.skipped_auth.length) { btn.textContent = "auth"; btn.title = "Auth-walled: на ESP32 не заиграет"; }
+    else showErr("Push: " + (r.errors.map((e) => e.error).join("; ") || "отклонено"));
+  }).catch((e) => { showErr("Push: " + e.message); btn.disabled = false; });
+}
 $("pushBtn").onclick = () => {
   if (!state.selected.size) return showErr("Ничего не отмечено");
+  const token = getToken();
+  if (token) { // токен уже есть (введён в Station Manager) — пушим молча
+    const ids = [...state.selected];
+    jpost("push", { ids, token }).then((r) => {
+      const parts = [`добавлено: ${r.added_n}`];
+      if (r.skipped_dup.length) parts.push(`дубли: ${r.skipped_dup.length}`);
+      if (r.skipped_auth.length) parts.push(`auth-walled: ${r.skipped_auth.length}`);
+      if (r.errors.length) parts.push(`ошибки: ${r.errors.map((e) => e.name + " — " + e.error).join("; ")}`);
+      showErr(parts.join(" · ")); // та же плашка, но как отчёт
+      state.selected.clear();
+      load();
+    }).catch((e) => showErr("Push: " + e.message));
+    return;
+  }
+  state.pendingPush = null;
   $("pushText").textContent = `Отмечено: ${state.selected.size} — допишутся в конец списка WebRadio (дубли и auth-walled пропускаются).`;
   $("pushResult").textContent = "";
   $("pushToken").value = localStorage.getItem("webradio_token") || "";
@@ -176,10 +213,15 @@ $("pushCancel").onclick = () => $("pushModal").classList.add("hidden");
 $("pushGo").onclick = async () => {
   const token = $("pushToken").value.trim();
   if (!token) return showErr("Нужен токен WebRadio");
-  if ($("pushRemember").checked) localStorage.setItem("webradio_token", token);
+  if ($("pushRemember").checked) {
+    localStorage.setItem("secret_token", token); // общий с Station Manager
+    localStorage.setItem("webradio_token", token);
+  }
+  const ids = state.pendingPush || [...state.selected];
+  state.pendingPush = null;
   $("pushGo").disabled = true;
   try {
-    const r = await jpost("push", { ids: [...state.selected], token });
+    const r = await jpost("push", { ids, token });
     const parts = [`добавлено: ${r.added_n}`];
     if (r.skipped_dup.length) parts.push(`дубли: ${r.skipped_dup.length}`);
     if (r.skipped_auth.length) parts.push(`auth-walled: ${r.skipped_auth.length} (${r.skipped_auth.join("; ")})`);
@@ -245,6 +287,8 @@ function playUrl(id, url, mode) {
     });
 }
 $("rows").addEventListener("click", (e) => {
+  const a = e.target.closest("button.add");
+  if (a) { pushOne(+a.dataset.id, a); return; }
   const b = e.target.closest("button.play");
   if (!b) return;
   const id = +b.dataset.id, url = b.dataset.url;
