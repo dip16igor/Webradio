@@ -286,7 +286,7 @@ h2 {
     display: grid;
     grid-template-columns: minmax(0, 1fr) 220px;
     gap: 15px;
-    align-items: start;
+    align-items: stretch;
     margin-bottom: 20px;
 }
 
@@ -302,9 +302,11 @@ h2 {
     padding: 12px;
     min-width: 0;
     overflow-x: hidden;
+    height: 220px;
+    box-sizing: border-box;
 }
 
-.station-row .station-selector { min-width: 0; }
+.station-card .station-selector { height: 196px; min-width: 0; }
 
 .cover-card {
     background-color: var(--card);
