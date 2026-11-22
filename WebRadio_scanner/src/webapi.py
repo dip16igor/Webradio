@@ -96,7 +96,7 @@ def query_stations(con, params, for_export=False):
     offset = max(int(params.get("offset", 0) or 0), 0)
     rows = con.execute(
         f"""SELECT id, url, name, genre, codec, bitrate, samplerate, channels,
-                   country, city, ads_score, streamtitle, lastcheck, lastcheckok,
+                   country, station_country, city, ads_score, streamtitle, lastcheck, lastcheckok,
                    fail_count, approved, auth_walled, source
             FROM stations {sql_where} ORDER BY {sort} LIMIT ? OFFSET ?""",
         (*args, limit, offset)).fetchall()

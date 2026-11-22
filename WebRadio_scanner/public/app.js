@@ -46,6 +46,13 @@ function streamCell(r) {
   if (r.fail_count) s += ` <span class="badge bad">fail×${r.fail_count}</span>`;
   return s;
 }
+function geoCell(r) {
+  if (!r.country && !r.city) return '<span class="badge">?</span>';
+  let s = esc([r.country, r.city].filter(Boolean).join(", "));
+  if (r.station_country && r.station_country !== r.country)
+    s += `<br><small style="color:var(--mut)">заявл.: ${esc(r.station_country)}</small>`;
+  return s;
+}
 function adsCell(r) {
   if (r.ads_score >= 60) return `<span class="badge bad">ads ${r.ads_score}</span>`;
   if (r.ads_score > 0) return `<span class="badge warn">ads ${r.ads_score}</span>`;
@@ -70,7 +77,7 @@ async function load() {
         (r.approved ? ' <span class="badge appr">approved</span>' : "") + `</td>` +
         `<td>${r.genre ? esc(r.genre) : '<span class="badge">?</span>'}</td>` +
         `<td>${streamCell(r)}</td>` +
-        `<td>${r.country ? esc(r.country) + (r.city ? ", " + esc(r.city) : "") : '<span class="badge">?</span>'}</td>` +
+        `<td>${geoCell(r)}</td>` +
         `<td>${adsCell(r)}</td>` +
         `<td><small>${esc((r.lastcheck || "").replace("T", " "))}<br>${r.lastcheckok ? "OK" : "FAIL"}</small></td>` +
         `<td><button class="play ghost" data-id="${r.id}" data-url="${esc(r.url)}">▶</button></td>`;

@@ -7,7 +7,7 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 STATION_COLS = (
     "url", "url_resolved", "name", "description", "genre", "codec",
     "bitrate", "samplerate", "channels", "icy_br", "server_ip",
-    "country", "city", "lat", "lon", "source", "auth_walled",
+    "country", "station_country", "city", "lat", "lon", "source", "auth_walled",
     "ads_score", "talk_ratio", "streamtitle", "lastcheck",
     "lastcheckok", "fail_count", "approved",
 )
@@ -23,6 +23,10 @@ def connect(db_path):
 def init_db(con):
     with open(os.path.join(BASE_DIR, "schema.sql"), encoding="utf-8") as f:
         con.executescript(f.read())
+    # Миграция старых БД: колонка заявленной страны станции
+    cols = [r[1] for r in con.execute("PRAGMA table_info(stations)").fetchall()]
+    if "station_country" not in cols:
+        con.execute("ALTER TABLE stations ADD COLUMN station_country TEXT")
     con.commit()
 
 

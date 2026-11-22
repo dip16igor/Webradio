@@ -100,8 +100,9 @@ def scan_url(item, cfg):
         "samplerate": pr.get("icy_sr"),
         "channels": pr.get("icy_ch"),
         "icy_br": pr.get("icy_br"),
-        "server_ip": None,  # geo дописывается под локом ниже
-        "country": item.get("country"),
+        "server_ip": None,  # гео дописывается в store_result
+        "country": None,    # только гео сервера; заявленная — в station_country
+        "station_country": item.get("country"),
         "city": None,
         "lat": None,
         "lon": None,
@@ -126,7 +127,9 @@ def store_result(cfg, url, row, check):
         with _DB_LOCK:
             geo = geomod.geo_lookup(con, url, cache_hours=cfg.get("geo_cache_hours", 24))
             row["server_ip"] = geo.get("ip")
-            if not row.get("country"):
+            if geo.get("ip"):
+                # Гео сервера перетирает страну целиком: иначе смешиваются
+                # заявленная страна станции (каталог) и город сервера (ip-api).
                 row["country"] = geo.get("country")
             row["city"] = geo.get("city")
             row["lat"] = geo.get("lat")

@@ -16,6 +16,7 @@ CREATE TABLE IF NOT EXISTS stations (
   icy_br        INTEGER,
   server_ip     TEXT,
   country       TEXT,
+  station_country TEXT,
   city          TEXT,
   lat           REAL,
   lon           REAL,
