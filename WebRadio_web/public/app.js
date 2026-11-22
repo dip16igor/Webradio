@@ -104,7 +104,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const titleEl = document.getElementById('title');
     const dropoutsEl = document.getElementById('dropouts');
     const alarmEl = document.getElementById('alarm');
-    const logEl = document.getElementById('log');
     const statusContainer = document.getElementById('status-container');
     
     const stationSelector = document.getElementById('station-selector');
@@ -310,8 +309,6 @@ document.addEventListener('DOMContentLoaded', () => {
         } else {
             alarmEl.textContent = alarmValue || 'N/A';
         }
-        logEl.textContent = data.Log || 'N/A';
-
         currentVolume = parseInt(data.Volume, 10) || 0;
         const stationMatch = (data.Station || '').match(/^(\d+)/);
         currentStationNum = stationMatch ? parseInt(stationMatch[1], 10) : 1;
