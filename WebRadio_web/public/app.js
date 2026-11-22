@@ -321,6 +321,9 @@ document.addEventListener('DOMContentLoaded', () => {
             const targetScrollTop = (currentStationNum - 1) * STATION_ITEM_HEIGHT;
             stationSelector.scrollTop = targetScrollTop;
             stationSelector.dataset.lastSyncedStation = String(currentStationNum);
+            // station switched: drop the old track title at once, firmware
+            // sends fresh metadata when it arrives
+            titleEl.textContent = '…';
             updateSelectedStation(false);
         }
     };
