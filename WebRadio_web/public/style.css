@@ -367,30 +367,46 @@ h2 {
     background-color: var(--play-bg);
 }
 
-/* Index page: combined now-playing + server map card */
+/* Index page: combined now-playing + server map card.
+ * All texts lie directly on the map (no backdrops), stroked for readability. */
 .map-card {
-    background-color: var(--card);
-    border: 1px solid var(--border);
+    background: none;
+    border: none;
     border-radius: 8px;
-    padding: 12px;
+    padding: 0;
     margin-bottom: 20px;
     overflow: hidden;
+    position: relative;
 }
 
 .now-top {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
     display: flex;
     justify-content: space-between;
     align-items: flex-start;
     gap: 10px;
-    margin-bottom: 8px;
+    padding: 8px 10px;
+    z-index: 500;
+    pointer-events: none;
+    text-shadow:
+        -1px -1px 0 #000,
+        1px -1px 0 #000,
+        -1px 1px 0 #000,
+        1px 1px 0 #000,
+        0 0 6px rgba(0, 0, 0, 0.9);
 }
+
+.now-top button { pointer-events: auto; }
 
 .now-left { min-width: 0; flex: 1; }
 
 .now-station {
     font-size: 18px;
     font-weight: 700;
-    color: var(--heading);
+    color: #fff;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -398,14 +414,14 @@ h2 {
 
 .now-track {
     font-size: 13px;
-    color: var(--muted);
+    color: #ddd;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
     margin-top: 2px;
 }
 
-.now-right { text-align: right; flex: none; }
+.now-right { text-align: right; flex: none; color: #fff; }
 
 .now-volrow {
     display: flex;
@@ -420,14 +436,14 @@ h2 {
 
 .now-alarmrow {
     font-size: 13px;
-    color: var(--muted);
+    color: #ddd;
     margin-top: 4px;
 }
 
 .sym-btn {
-    background: var(--btn-bg);
-    color: var(--btn-text);
-    border: 1px solid var(--input-border);
+    background: rgba(0, 0, 0, 0.45);
+    color: #fff;
+    border: 1px solid rgba(255, 255, 255, 0.35);
     border-radius: 6px;
     width: 30px;
     height: 30px;
@@ -435,13 +451,12 @@ h2 {
     line-height: 1;
     cursor: pointer;
     padding: 0;
+    text-shadow: none;
 }
 
-.sym-btn:hover { border-color: var(--ok-text); }
+.sym-btn:hover { border-color: #7ddb9b; }
 
-.sym-btn.danger { color: var(--err-text); border-color: var(--err-border); }
-
-.now-mapwrap { position: relative; border-radius: 6px; overflow: hidden; }
+.now-mapwrap { position: relative; border-radius: 8px; overflow: hidden; }
 
 #idx-map {
     height: 240px;
