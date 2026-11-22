@@ -520,6 +520,8 @@ h2 {
 
 .now-drop.dropouts-bad { color: #f2a1a1; font-weight: bold; }
 
+.now-rightside .now-drop { transform: translateY(-3px); display: inline-block; }
+
 .now-log {
     margin-top: 6px;
     font-size: 12px;
