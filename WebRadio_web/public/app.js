@@ -412,7 +412,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Wheel chases a moving target: each notch pushes the target further,
     // speed is proportional to distance — slow spin = 1 station, fast spin = fly.
-    let wTarget = null, wRaf = 0, wAcc = 0, wAccT = 0, wheelBoost = 1, wheelLastT = 0;
+    let wTarget = null, wRaf = 0, wheelAcc = 0, wheelAccT = 0, wheelBoost = 1, wheelLastT = 0;
     const wTick = () => {
         const cur = stationSelector.scrollTop;
         const d = wTarget - cur;
