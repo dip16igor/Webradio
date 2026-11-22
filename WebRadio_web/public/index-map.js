@@ -58,6 +58,34 @@
             .catch(function () { /* offline: keep old cache */ });
     }
 
+    function fmtKHz(hz) {
+        if (!hz || hz <= 0) return null;
+        return hz >= 1000 ? String(parseFloat((hz / 1000).toFixed(1))).replace('.', ',') + ' кГц' : Math.round(hz) + ' Гц';
+    }
+
+    function fetchProbe(url, num) {
+        var pel = document.getElementById('now-params');
+        fetch(API + '/probe?url=' + encodeURIComponent(url), {
+            headers: token() ? { 'X-Auth-Token': token() } : {}
+        })
+            .then(function (r) { return r.json().catch(function () { return {}; }); })
+            .then(function (j) {
+                if (num !== lastNum) return;
+                var d = j && j.data;
+                if (!(j && j.success && d)) { if (pel) pel.textContent = '—'; return; }
+                var br = d.icyBr ? d.icyBr + ' kbps' : (d.measuredKbps ? '~' + d.measuredKbps + ' kbps' : null);
+                var ch = d.channels === 2 ? 'Stereo' : (d.channels === 1 ? 'Mono' : (d.channels ? d.channels + 'ch' : null));
+                var sr = fmtKHz(d.sampleRate);
+                var parts = [d.codec, br, sr, ch].filter(Boolean);
+                if (pel) pel.textContent = parts.length ? parts.join(' · ') : '—';
+            })
+            .catch(function () {
+                if (num !== lastNum) return;
+                var pel2 = document.getElementById('now-params');
+                if (pel2) pel2.textContent = '—';
+            });
+    }
+
     function onStationNum(num) {
         if (num === lastNum) return;
         lastNum = num;
@@ -75,6 +103,7 @@
                     } else { showUnknown(); }
                 })
                 .catch(function () { showUnknown(); });
+            fetchProbe(st.url, num);
         });
     }
 
