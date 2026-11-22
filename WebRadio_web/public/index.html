@@ -11,6 +11,7 @@
     <link rel="icon" type="image/png" sizes="16x16" href="favicon-16x16.png">
     <link rel="manifest" href="site.webmanifest">
     <link rel="stylesheet" href="style.css?v=2">
+    <link rel="stylesheet" href="leaflet.css?v=1">
     <script src="theme.js"></script>
 </head>
 
@@ -38,6 +39,14 @@
                 <p><strong>Alarm:&nbsp;</strong><span id="alarm">N/A</span></p>
                 <p class="info-log"><strong>Log:&nbsp;</strong><span id="log">Connecting...</span></p>
             </div>
+        </div>
+
+        <div class="card map-card">
+            <div class="map-head">
+                <h2>Карта сервера</h2>
+                <span id="idx-loc"></span>
+            </div>
+            <div id="idx-map"></div>
         </div>
 
         <div class="controls-grid">
@@ -70,6 +79,8 @@
     </div>
 
     <script src="app.js"></script>
+    <script src="leaflet.js?v=1"></script>
+    <script src="index-map.js"></script>
 <script>
 if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {

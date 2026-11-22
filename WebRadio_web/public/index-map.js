@@ -1,0 +1,101 @@
+/* Index page server map (Leaflet): follows the playing station via /geo.
+ * Watches #station text ("N - name"), resolves the stream URL from the
+ * station list, flies the map there. Token: same secret_token as app.js. */
+(function () {
+    'use strict';
+    var BASE = window.location.pathname.replace(/\/[^/]*$/, '').replace(/\/$/, '');
+    var API = BASE + '/api/radio';
+    var map = null, marker = null, lastNum = -1, stationsCache = null, stationsAt = 0;
+
+    var mapEl = function () { return document.getElementById('idx-map'); };
+    var locEl = function () { return document.getElementById('idx-loc'); };
+
+    function token() {
+        try { return localStorage.getItem('secret_token') || ''; } catch (e) { return ''; }
+    }
+
+    function initMap() {
+        if (map || typeof L === 'undefined' || !mapEl()) return;
+        map = L.map('idx-map', { zoomControl: false, minZoom: 1, maxZoom: 12, worldCopyJump: true, zoomSnap: 0.25, attributionControl: true });
+        map.attributionControl.setPrefix(false);
+        L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}', {
+            attribution: 'Esri', maxZoom: 12
+        }).addTo(map);
+        map.setView([25, 0], 1);
+    }
+
+    function markIcon() {
+        return L.divIcon({
+            className: '', html: '<div style="width:10px;height:10px;background:#00f0ff;border-radius:50%;box-shadow:0 0 8px #00f0ff;"></div>',
+            iconSize: [10, 10], iconAnchor: [5, 5]
+        });
+    }
+
+    function showPlace(lat, lon, info) {
+        if (!map) return;
+        if (!marker) marker = L.marker([lat, lon], { icon: markIcon(), interactive: false }).addTo(map);
+        else marker.setLatLng([lat, lon]);
+        map.flyTo([lat, lon], 7, { duration: 2.8 });
+        if (locEl()) locEl().textContent = [info.city, info.country].filter(Boolean).join(', ') || info.ip || '';
+    }
+
+    function showUnknown() {
+        if (!map) return;
+        if (marker) { map.removeLayer(marker); marker = null; }
+        map.setView([25, 0], 1);
+        if (locEl()) locEl().textContent = '';
+    }
+
+    function loadStations(cb) {
+        if (stationsCache && Date.now() - stationsAt < 60000) return cb(stationsCache);
+        fetch(API + '/stations', { headers: token() ? { 'X-Auth-Token': token() } : {} })
+            .then(function (r) { return r.json().catch(function () { return {}; }); })
+            .then(function (j) {
+                if (j && j.success && j.data && Array.isArray(j.data.stations)) {
+                    stationsCache = j.data.stations; stationsAt = Date.now(); cb(stationsCache);
+                }
+            })
+            .catch(function () { /* offline: keep old cache */ });
+    }
+
+    function onStationNum(num) {
+        if (num === lastNum) return;
+        lastNum = num;
+        loadStations(function (list) {
+            var st = list[num - 1];
+            if (!st || !st.url) return;
+            fetch(API + '/geo?url=' + encodeURIComponent(st.url), {
+                headers: token() ? { 'X-Auth-Token': token() } : {}
+            })
+                .then(function (r) { return r.json().catch(function () { return {}; }); })
+                .then(function (j) {
+                    var d = j && j.data;
+                    if (j && j.success && d && !d.unknown && typeof d.lat === 'number' && typeof d.lon === 'number') {
+                        showPlace(d.lat, d.lon, { city: d.city, country: d.country, ip: d.ip });
+                    } else { showUnknown(); }
+                })
+                .catch(function () { showUnknown(); });
+        });
+    }
+
+    function readNum() {
+        var el = document.getElementById('station');
+        if (!el) return 0;
+        var mt = (el.textContent || '').match(/^(\d+)/);
+        return mt ? parseInt(mt[1], 10) : 0;
+    }
+
+    function boot() {
+        initMap();
+        if (!map) return;
+        var el = document.getElementById('station');
+        if (el && typeof MutationObserver !== 'undefined') {
+            new MutationObserver(function () { onStationNum(readNum()); }).observe(el, { childList: true, characterData: true, subtree: true });
+        }
+        onStationNum(readNum());
+        setInterval(function () { onStationNum(readNum()); }, 15000);
+    }
+
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
+    else boot();
+})();
