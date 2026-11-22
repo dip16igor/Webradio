@@ -19,7 +19,7 @@ app.set('trust proxy', 1); // Trust the first proxy
 
 // Desktop app (Tauri) talks to this API cross-origin from tauri://localhost.
 const PUB_CORS_ORIGINS = (process.env.PUB_CORS_ORIGINS || 'tauri://localhost,http://tauri.localhost,https://tauri.localhost').split(',').map((s) => s.trim()).filter(Boolean);
-app.use('/api/pub', cors({
+const pubCors = cors({
     origin: (origin, cb) => {
         // NOTE: new URL('tauri://localhost').origin is the string 'null'
         // (opaque origin), so compare the raw header verbatim.
@@ -28,7 +28,11 @@ app.use('/api/pub', cors({
         return cb(null, false);
     },
     credentials: true,
-}));
+});
+app.use('/api/pub', pubCors);
+// /probe + /geo live on the admin router but serve pub sessions too
+// (see apiAuth bypass); the desktop fetch needs CORS headers there as well.
+app.use('/api/radio', pubCors);
 
 // Security headers
 app.use(helmet({
