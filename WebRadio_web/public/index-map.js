@@ -5,7 +5,26 @@
     'use strict';
     var BASE = window.location.pathname.replace(/\/[^/]*$/, '').replace(/\/$/, '');
     var API = BASE + '/api/radio';
-    var map = null, marker = null, lastNum = -1, stationsCache = null, stationsAt = 0;
+    var map = null, marker = null, tileLayer = null, tileIsLight = null, lastNum = -1, stationsCache = null, stationsAt = 0;
+
+    function tileUrl(light) {
+        var base = light ? 'World_Light_Gray_Base' : 'World_Dark_Gray_Base';
+        return 'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/' + base + '/MapServer/tile/{z}/{y}/{x}';
+    }
+
+    function isLightTheme() {
+        try { return document.documentElement.getAttribute('data-theme') === 'light'; }
+        catch (e) { return false; }
+    }
+
+    function applyTiles() {
+        if (!map || typeof L === 'undefined') return;
+        var light = isLightTheme();
+        if (tileLayer && light === tileIsLight) return;
+        if (tileLayer) map.removeLayer(tileLayer);
+        tileIsLight = light;
+        tileLayer = L.tileLayer(tileUrl(light), { attribution: 'Esri', maxZoom: 12 }).addTo(map);
+    }
 
     var mapEl = function () { return document.getElementById('idx-map'); };
     var locEl = function () { return document.getElementById('idx-loc'); };
@@ -18,10 +37,11 @@
         if (map || typeof L === 'undefined' || !mapEl()) return;
         map = L.map('idx-map', { zoomControl: false, minZoom: 1, maxZoom: 12, worldCopyJump: true, zoomSnap: 0.25, attributionControl: true });
         map.attributionControl.setPrefix(false);
-        L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}', {
-            attribution: 'Esri', maxZoom: 12
-        }).addTo(map);
+        applyTiles();
         map.setView([25, 0], 1);
+        if (typeof MutationObserver !== 'undefined') {
+            new MutationObserver(function () { applyTiles(); }).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+        }
     }
 
     function markIcon() {

@@ -24,6 +24,10 @@
     --play-bg: #1d5c33;
     --play-hover: #256b3d;
     --row-playing: #1d3a24;
+    --map-text: #ffffff;
+    --map-sub: #dddddd;
+    --map-stroke: #000000;
+    --map-bar-off: rgba(255, 255, 255, 0.25);
     --shadow: 0 2px 10px rgba(0,0,0,0.5);
 }
 
@@ -52,6 +56,10 @@
     --play-bg: #38a169;
     --play-hover: #2f855a;
     --row-playing: #dff0e3;
+    --map-text: #161616;
+    --map-sub: #333333;
+    --map-stroke: #ffffff;
+    --map-bar-off: rgba(0, 0, 0, 0.25);
     --shadow: 0 2px 10px rgba(0,0,0,0.1);
 }
 
@@ -392,11 +400,11 @@ h2 {
     z-index: 500;
     pointer-events: none;
     text-shadow:
-        -1px -1px 0 #000,
-        1px -1px 0 #000,
-        -1px 1px 0 #000,
-        1px 1px 0 #000,
-        0 0 6px rgba(0, 0, 0, 0.9);
+        -1px -1px 0 var(--map-stroke),
+        1px -1px 0 var(--map-stroke),
+        -1px 1px 0 var(--map-stroke),
+        1px 1px 0 var(--map-stroke),
+        0 0 6px var(--map-stroke);
 }
 
 .now-top button { pointer-events: auto; }
@@ -406,7 +414,7 @@ h2 {
 .now-station {
     font-size: 18px;
     font-weight: 700;
-    color: #fff;
+    color: var(--map-text);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -431,14 +439,14 @@ h2 {
 
 .now-track {
     font-size: 15px;
-    color: #eee;
+    color: var(--map-sub);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
     margin-top: 2px;
 }
 
-.now-right { text-align: right; flex: none; color: #fff; }
+.now-right { text-align: right; flex: none; color: var(--map-text); }
 
 .now-leds { display: flex; gap: 8px; justify-content: flex-end; margin-bottom: 4px; }
 
@@ -465,7 +473,7 @@ h2 {
 
 .now-vol { min-width: 2ch; }
 
-.now-volrow .volume-bar { background-color: rgba(255, 255, 255, 0.25); }
+.now-volrow .volume-bar { background-color: var(--map-bar-off); }
 
 .now-volrow .volume-bar.active {
     background-color: #4dff88;
@@ -474,7 +482,7 @@ h2 {
 
 .now-alarmrow {
     font-size: 13px;
-    color: #ddd;
+    color: var(--map-sub);
     margin-top: 4px;
 }
 
@@ -513,16 +521,16 @@ h2 {
     gap: 8px;
     padding: 4px 8px;
     font-size: 12px;
-    color: #e8e8e8;
+    color: var(--map-text);
     background: none;
     pointer-events: none;
     z-index: 500;
     text-shadow:
-        -1px -1px 0 #000,
-        1px -1px 0 #000,
-        -1px 1px 0 #000,
-        1px 1px 0 #000,
-        0 0 6px rgba(0, 0, 0, 0.9);
+        -1px -1px 0 var(--map-stroke),
+        1px -1px 0 var(--map-stroke),
+        -1px 1px 0 var(--map-stroke),
+        1px 1px 0 var(--map-stroke),
+        0 0 6px var(--map-stroke);
 }
 
 .now-rightside { display: flex; gap: 10px; align-items: center; }
