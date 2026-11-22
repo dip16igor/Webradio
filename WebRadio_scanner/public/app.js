@@ -46,10 +46,15 @@ function streamCell(r) {
   if (r.fail_count) s += ` <span class="badge bad">fail×${r.fail_count}</span>`;
   return s;
 }
+function normCountry(s) {
+  const t = (s || "").toLowerCase().replace(/^the\s+/, "").trim();
+  return { "russian federation": "russia", "united states of america": "united states",
+           "republic of korea": "south korea", "republic of north macedonia": "north macedonia" }[t] || t;
+}
 function geoCell(r) {
   if (!r.country && !r.city) return '<span class="badge">?</span>';
   let s = esc([r.country, r.city].filter(Boolean).join(", "));
-  if (r.station_country && r.station_country !== r.country)
+  if (r.station_country && normCountry(r.station_country) !== normCountry(r.country))
     s += `<br><small style="color:var(--mut)">заявл.: ${esc(r.station_country)}</small>`;
   return s;
 }
