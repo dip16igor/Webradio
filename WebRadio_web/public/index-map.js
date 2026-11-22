@@ -6,6 +6,24 @@
     var BASE = window.location.pathname.replace(/\/[^/]*$/, '').replace(/\/$/, '');
     var API = BASE + '/api/radio';
     var map = null, marker = null, tileLayer = null, tileIsLight = null, lastNum = -1, stationsCache = null, stationsAt = 0;
+    var coverSeq = 0, lastCoverTitle = '';
+
+    function fetchCover(title) {
+        if (title === lastCoverTitle) return;
+        lastCoverTitle = title;
+        var img = document.getElementById('idx-cover');
+        if (!title || title === 'N/A' || title === '…' || !img) { if (img) img.src = 'radio.svg'; return; }
+        var seq = ++coverSeq;
+        var q = title.indexOf(' - ') > 0 ? title.replace(' - ', ' ') : title;
+        fetch('https://itunes.apple.com/search?term=' + encodeURIComponent(q) + '&media=music&entity=song&limit=1')
+            .then(function (r) { return r.json().catch(function () { return {}; }); })
+            .then(function (j) {
+                if (seq !== coverSeq) return;
+                var art = j && j.results && j.results[0] && j.results[0].artworkUrl100;
+                img.src = art ? art.replace('100x100', '300x300') : 'radio.svg';
+            })
+            .catch(function () { if (seq === coverSeq && img) img.src = 'radio.svg'; });
+    }
 
     function tileUrl(light) {
         var base = light ? 'World_Light_Gray_Base' : 'World_Dark_Gray_Base';
@@ -136,6 +154,11 @@
 
     function boot() {
         initMap();
+        if (typeof MutationObserver !== 'undefined') {
+            var titleEl = document.getElementById('title');
+            if (titleEl) new MutationObserver(function () { fetchCover((titleEl.textContent || '').trim()); }).observe(titleEl, { childList: true, characterData: true, subtree: true });
+            fetchCover(((titleEl && titleEl.textContent) || '').trim());
+        }
         if (!map) return;
         var el = document.getElementById('station');
         if (el && typeof MutationObserver !== 'undefined') {

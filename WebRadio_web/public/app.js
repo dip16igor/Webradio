@@ -109,7 +109,6 @@ document.addEventListener('DOMContentLoaded', () => {
     
     const stationSelector = document.getElementById('station-selector');
     const stationWheel = document.getElementById('station-wheel');
-    const playSelectedBtn = document.getElementById('btn-play-selected');
 
     // Control Buttons
     const powerBtn = document.getElementById('btn-power');
@@ -356,13 +355,19 @@ document.addEventListener('DOMContentLoaded', () => {
         setTimeout(() => postCommand('?'), 200);
     });
 
-    playSelectedBtn.addEventListener('click', () => {
-        if (selectedStationId > 0 && selectedStationId <= TOTAL_STATIONS) {
-            postCommand(`c${selectedStationId}`);
+    // --- STATION WHEEL LOGIC ---
+    // Click a row to center it (= select); click the already-selected row to play it.
+    stationWheel.addEventListener('click', (e) => {
+        const row = e.target.closest('.station-item');
+        if (!row || !row.dataset.stationId) return;
+        const id = parseInt(row.dataset.stationId, 10);
+        if (id === selectedStationId) {
+            if (id > 0 && id <= TOTAL_STATIONS) postCommand(`c${id}`);
+        } else {
+            stationSelector.scrollTo({ top: (id - 1) * STATION_ITEM_HEIGHT, behavior: 'smooth' });
         }
     });
 
-    // --- STATION WHEEL LOGIC ---
     const updateSelectedStation = (snap = true) => {
         const scrollTop = stationSelector.scrollTop;
         const selectedIndex = Math.round(scrollTop / STATION_ITEM_HEIGHT);

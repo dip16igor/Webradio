@@ -281,6 +281,46 @@ h2 {
     margin-bottom: 20px;
 }
 
+/* Preset stations: scrollable list card + square cover card */
+.station-row {
+    display: grid;
+    grid-template-columns: 1fr 220px;
+    gap: 15px;
+    align-items: stretch;
+    margin-bottom: 20px;
+}
+
+@media (max-width: 600px) {
+    .station-row { grid-template-columns: 1fr; }
+    .cover-card { max-width: 300px; }
+}
+
+.station-card {
+    background-color: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px;
+    min-width: 0;
+}
+
+.cover-card {
+    background-color: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px;
+    aspect-ratio: 1 / 1;
+    max-height: 260px;
+}
+
+.cover-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 4px;
+    display: block;
+    background: #111;
+}
+
 .station-selector {
     height: 250px; /* 5 items * 50px item height */
     overflow-y: scroll;
@@ -322,7 +362,13 @@ h2 {
     font-size: 1.3em;
     opacity: 1;
     transform: scale(1);
+    border: 1px solid var(--ok-text);
+    border-radius: 10px;
+    background: var(--row-bg);
+    cursor: pointer;
 }
+
+.station-wheel .station-item { cursor: pointer; }
 
 
 
