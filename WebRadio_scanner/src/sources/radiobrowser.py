@@ -7,9 +7,10 @@ UA = "WebRadio_scanner/1.0"
 
 
 def search(host, name=None, tag=None, country=None, limit=100, timeout=15,
-           hidebroken=True):
+           hidebroken=True, order="clickcount", reverse=True, offset=0):
     params = {"limit": limit, "hidebroken": "true" if hidebroken else "false",
-              "order": "clickcount", "reverse": "true"}
+              "order": order, "reverse": "true" if reverse else "false",
+              "offset": offset}
     if name:
         endpoint, params["name"] = "search", name
     elif tag:

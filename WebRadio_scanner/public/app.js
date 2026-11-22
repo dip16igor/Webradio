@@ -113,7 +113,7 @@ async function loadStatus() {
       pb.classList.remove("hidden");
       const pct = sc.total ? Math.round(100 * sc.done / sc.total) : 0;
       $("bar").style.width = pct + "%";
-      $("plabel").textContent = `Скан: ${sc.done}/${sc.total}`;
+      $("plabel").textContent = `Скан${sc.mode ? " (" + sc.mode + ")" : ""}: ${sc.done}/${sc.total}`;
       $("scanBtn").disabled = true;
       setTimeout(loadStatus, 2000);
       if (sc.done === sc.total && sc.total > 0) setTimeout(load, 500);

@@ -43,8 +43,32 @@ def is_blacklisted(url):
         return url in _BL
 
 
-def collect_seeds(cfg):
+def next_rotation(db_path):
+    """Сквозной счётчик сканов (в БД) -> параметры выборки radio-browser.
+    Режимы по кругу: топ по кликам -> хвост -> алфавитные срезы со сдвигом."""
+    con = dbmod.connect(db_path)
+    try:
+        con.execute("CREATE TABLE IF NOT EXISTS meta (k TEXT PRIMARY KEY, v TEXT)")
+        row = con.execute("SELECT v FROM meta WHERE k = 'scan_seq'").fetchone()
+        seq = int(row[0]) if row else 0
+        con.execute("INSERT INTO meta (k, v) VALUES ('scan_seq', ?) "
+                    "ON CONFLICT(k) DO UPDATE SET v = excluded.v", (str(seq + 1),))
+        con.commit()
+    finally:
+        con.close()
+    m = seq % 3
+    if m == 0:
+        return {"order": "clickcount", "reverse": True, "offset": 0, "label": "топ"}
+    if m == 1:
+        return {"order": "clickcount", "reverse": False, "offset": 0, "label": "хвост"}
+    k = seq // 3
+    return {"order": "name", "reverse": bool(k % 2), "offset": (k * 100) % 500,
+            "label": f"алфавит/{'я-а' if k % 2 else 'а-я'}+{((k * 100) % 500)}"}
+
+
+def collect_seeds(cfg, rotation=None):
     seeds, seen = [], set()
+    rot = rotation or {"order": "clickcount", "reverse": True, "offset": 0}
 
     def add(items):
         for it in items:
@@ -56,7 +80,10 @@ def collect_seeds(cfg):
     for tag in cfg.get("radiobrowser_tags", []):
         try:
             add(rb.search(cfg["radiobrowser_host"], tag=tag,
-                          limit=cfg.get("radiobrowser_limit_per_tag", 100)))
+                          limit=cfg.get("radiobrowser_limit_per_tag", 100),
+                          order=rot.get("order", "clickcount"),
+                          reverse=rot.get("reverse", True),
+                          offset=rot.get("offset", 0)))
         except Exception as e:
             print(f"[collect] radio-browser tag={tag}: {type(e).__name__}", flush=True)
     for srv in cfg.get("icecast_servers", []):
@@ -180,7 +207,9 @@ def cmd_once(cfg, limit=None, probe_only=False):
             (limit or 500,))
         seeds = [dict(r) for r in cur.fetchall()]
     else:
-        seeds = collect_seeds(cfg)
+        rotation = next_rotation(cfg["db_path"])
+        print(f"[pipeline] mode: {rotation.get('label')}", flush=True)
+        seeds = collect_seeds(cfg, rotation)
         if limit:
             seeds = seeds[:limit]
     print(f"[pipeline] seeds: {len(seeds)}", flush=True)

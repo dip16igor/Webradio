@@ -38,7 +38,7 @@ MIME = {".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=ut
         ".css": "text/css; charset=utf-8", ".json": "application/json",
         ".png": "image/png", ".svg": "image/svg+xml", ".ico": "image/x-icon"}
 
-_scan = {"running": False, "done": 0, "total": 0, "started_at": None, "error": None}
+_scan = {"running": False, "done": 0, "total": 0, "started_at": None, "error": None, "mode": None}
 _scan_lock = threading.Lock()
 _cfg = None
 
@@ -112,8 +112,11 @@ def query_stations(con, params, for_export=False):
 def scan_worker(limit):
     cfg = get_cfg()
     pipe.refresh_blacklist(cfg["db_path"])
+    rotation = pipe.next_rotation(cfg["db_path"])
+    with _scan_lock:
+        _scan["mode"] = rotation.get("label")
     try:
-        seeds = pipe.collect_seeds(cfg)
+        seeds = pipe.collect_seeds(cfg, rotation)
         if limit:
             seeds = seeds[:limit]
         with _scan_lock:
@@ -394,7 +397,7 @@ class Handler(BaseHTTPRequestHandler):
             with _scan_lock:
                 if _scan["running"]:
                     return self._json({"started": False, "reason": "already running"})
-                _scan.update(running=True, done=0, total=0, started_at=time.time(), error=None)
+                _scan.update(running=True, done=0, total=0, started_at=time.time(), error=None, mode=None)
             limit = int(data.get("limit") or 200)
             threading.Thread(target=scan_worker, args=(limit,), daemon=True).start()
             self._json({"started": True, "limit": limit})
