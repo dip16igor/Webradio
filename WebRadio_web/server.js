@@ -1581,6 +1581,7 @@ const previewAuth = (req, res, next) => {
 // Cache per hostname, 24 h. Unknown (private IP, DNS/geo fail) -> {unknown:true}.
 const geoCache = new Map();
 const GEO_TTL = 24 * 3600 * 1000;
+const GEO_UNKNOWN_TTL = 5 * 60 * 1000; // transient misses (rate limit/timeout) revalidate fast
 const lookupGeo = (ip) => new Promise((resolve) => {
     const q = `http://ip-api.com/json/${encodeURIComponent(ip)}?fields=status,message,country,countryCode,city,lat,lon,query`;
     http.get(q, { timeout: 8000 }, (up) => {
@@ -1605,7 +1606,10 @@ apiRouter.get('/geo', async (req, res) => {
     try { host = new URL(gate.url).hostname.toLowerCase(); }
     catch (e) { return res.status(422).json({ success: false, message: 'bad url' }); }
     const hit = geoCache.get(host);
-    if (hit && Date.now() - hit.ts < GEO_TTL) return res.json({ success: true, data: hit.data, cached: true });
+    if (hit) {
+        const ttl = hit.data && hit.data.unknown ? GEO_UNKNOWN_TTL : GEO_TTL;
+        if (Date.now() - hit.ts < ttl) return res.json({ success: true, data: hit.data, cached: true });
+    }
     try {
         const addrs = await dns.lookup(host, { all: true });
         const v4 = addrs.find((a) => a.family === 4);

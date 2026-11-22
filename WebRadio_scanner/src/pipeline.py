@@ -10,6 +10,7 @@ import concurrent.futures as cf
 import datetime
 import sys
 import os
+import threading
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -20,6 +21,8 @@ from src import classify as clf
 from src import config as cfgmod
 from src.sources import radiobrowser as rb
 from src.sources import icecast as ice
+
+_DB_LOCK = threading.Lock()
 
 
 def collect_seeds(cfg):
@@ -46,7 +49,16 @@ def collect_seeds(cfg):
     return seeds
 
 
-def process_one(con, item, cfg):
+def process_one(db_path, item, cfg):
+    # Соединение открываем внутри воркера: sqlite-объект нельзя шарить между потоками.
+    con = dbmod.connect(db_path)
+    try:
+        return _process_one_inner(con, item, cfg)
+    finally:
+        con.close()
+
+
+def _process_one_inner(con, item, cfg):
     url = item["url"]
     pr = probemod.probe(url, timeout=cfg.get("timeout_sec", 12))
     ok = pr["ok"]
@@ -75,8 +87,6 @@ def process_one(con, item, cfg):
     if pr.get("measured_kbps") and (not bitrate):
         bitrate = int(round(pr["measured_kbps"]))
 
-    geo = geomod.geo_lookup(con, url, cache_hours=cfg.get("geo_cache_hours", 24))
-
     row = {
         "url": url,
         "url_resolved": item["url"] if url != item["url"] else None,
@@ -88,11 +98,11 @@ def process_one(con, item, cfg):
         "samplerate": pr.get("icy_sr"),
         "channels": pr.get("icy_ch"),
         "icy_br": pr.get("icy_br"),
-        "server_ip": geo.get("ip"),
-        "country": geo.get("country") or item.get("country"),
-        "city": geo.get("city"),
-        "lat": geo.get("lat"),
-        "lon": geo.get("lon"),
+        "server_ip": None,  # geo дописывается под локом ниже
+        "country": item.get("country"),
+        "city": None,
+        "lat": None,
+        "lon": None,
         "source": item.get("source"),
         "auth_walled": auth_walled,
         "ads_score": ads_score,
