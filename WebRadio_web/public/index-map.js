@@ -124,23 +124,41 @@
             });
     }
 
+    var lastGeoRetryFor = 0;
+    function isTransientGeoReason(r) {
+        return /unreachable|timeout|bad geo|geo failed|rate limit|dns failed/i.test(r || '');
+    }
+
+    function fetchGeo(url, num, isRetry) {
+        fetch(API + '/geo?url=' + encodeURIComponent(url), {
+            headers: token() ? { 'X-Auth-Token': token() } : {}
+        })
+            .then(function (r) { return r.json().catch(function () { return {}; }); })
+            .then(function (j) {
+                if (num !== lastNum) return;
+                var d = j && j.data;
+                if (j && j.success && d && !d.unknown && typeof d.lat === 'number' && typeof d.lon === 'number') {
+                    showPlace(d.lat, d.lon, { city: d.city, country: d.country, ip: d.ip });
+                } else if (!isRetry && d && isTransientGeoReason(d.reason)) {
+                    // one retry: the lookup may have hit a transient failure (rate limit/timeout)
+                    lastGeoRetryFor = num;
+                    setTimeout(function () {
+                        if (lastNum === num) fetchGeo(url, num, true);
+                    }, 6000);
+                    showUnknown();
+                } else { showUnknown(); }
+            })
+            .catch(function () { if (num === lastNum) showUnknown(); });
+    }
+
     function onStationNum(num) {
         if (num === lastNum) return;
         lastNum = num;
         loadStations(function (list) {
+            if (num !== lastNum) return;
             var st = list[num - 1];
             if (!st || !st.url) return;
-            fetch(API + '/geo?url=' + encodeURIComponent(st.url), {
-                headers: token() ? { 'X-Auth-Token': token() } : {}
-            })
-                .then(function (r) { return r.json().catch(function () { return {}; }); })
-                .then(function (j) {
-                    var d = j && j.data;
-                    if (j && j.success && d && !d.unknown && typeof d.lat === 'number' && typeof d.lon === 'number') {
-                        showPlace(d.lat, d.lon, { city: d.city, country: d.country, ip: d.ip });
-                    } else { showUnknown(); }
-                })
-                .catch(function () { showUnknown(); });
+            fetchGeo(st.url, num, false);
             fetchProbe(st.url, num);
         });
     }
