@@ -403,7 +403,14 @@ h2 {
 
 .now-left { min-width: 0; flex: 1; }
 
-.now-station { display: none; }
+.now-station {
+    font-size: 18px;
+    font-weight: 700;
+    color: #fff;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
 
 .now-center {
     flex: 1;
@@ -416,11 +423,7 @@ h2 {
     text-overflow: ellipsis;
 }
 
-.now-center #station { color: #fff; }
-
-.now-center .now-sep { color: #bbb; font-weight: 400; }
-
-.now-center #idx-loc { color: #7ddb9b; font-size: 15px; }
+.now-center #idx-loc { color: #7ddb9b; }
 
 .now-track {
     font-size: 15px;
