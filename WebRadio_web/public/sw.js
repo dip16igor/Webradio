@@ -1,5 +1,5 @@
 /* WebRadio PWA service worker: app shell offline, live API/audio always network. */
-const CACHE = 'webradio-v5';
+const CACHE = 'webradio-v6';
 const SHELL = [
     'index.html',
     'admin.html',
