@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Scanner — поиск радиостанций</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+  <div class="title">📡 Scanner <span class="sub">поиск web-радиостанций</span></div>
+  <div class="chips" id="chips"><span class="chip">…</span></div>
+  <div class="scanbox">
+    <input id="limit" type="number" value="200" min="10" max="2000" title="Лимит сидов">
+    <button id="scanBtn" title="Собрать сиды и проверить потоки">▶ Скан</button>
+    <a class="back" href="/webradio/" title="Вернуться в WebRadio">← WebRadio</a>
+  </div>
+</header>
+<div id="progress" class="progress hidden"><div id="bar"></div><span id="plabel"></span></div>
+<div id="err" class="err hidden"></div>
+
+<div class="toolbar">
+  <input id="q" type="search" placeholder="Поиск: имя, URL, трек…">
+  <select id="genre"><option value="">Жанр: все</option></select>
+  <select id="approved">
+    <option value="">Approve: все</option>
+    <option value="0">не одобренные</option>
+    <option value="1">одобренные</option>
+  </select>
+  <label class="chk"><input id="alive" type="checkbox" checked> только живые</label>
+  <select id="sort">
+    <option value="bitrate_desc">битрейт ↓</option>
+    <option value="bitrate_asc">битрейт ↑</option>
+    <option value="name">имя</option>
+    <option value="recent">свежие чеки</option>
+    <option value="country">страна</option>
+  </select>
+  <button id="exportBtn" title="JSON в формате PUT /stations">⤓ Экспорт</button>
+  <button id="approveBtn" title="Одобрить отмеченные">✓ Approve</button>
+  <button id="recheckBtn" title="Перепроверить отмеченные">↻ Recheck</button>
+</div>
+
+<div id="count" class="count"></div>
+<table>
+  <thead><tr>
+    <th><input id="selAll" type="checkbox"></th>
+    <th>Станция</th><th>Жанр</th><th>Поток</th><th>Гео</th><th>Ads</th><th>Чек</th><th></th>
+  </tr></thead>
+  <tbody id="rows"></tbody>
+</table>
+<div class="pager"><button id="prev">←</button><span id="page"></span><button id="next">→</button></div>
+
+<div id="modal" class="modal hidden">
+  <div class="mbox">
+    <div class="mhead">Экспорт для WebRadio <button id="copyBtn">Копировать</button><button id="closeBtn">✕</button></div>
+    <textarea id="expText" readonly></textarea>
+    <div class="mhint">Вставь в Station Manager → импорт после твоего «ок».</div>
+  </div>
+</div>
+
+<audio id="player" preload="none"></audio>
+<script src="app.js"></script>
+</body>
+</html>

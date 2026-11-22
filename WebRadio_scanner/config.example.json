@@ -1,5 +1,6 @@
 {
   "db_path": "data/scanner.db",
+  "web_port": 3100,
   "timeout_sec": 12,
   "workers": 8,
   "radiobrowser_host": "de1.api.radio-browser.info",

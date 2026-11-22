@@ -50,15 +50,13 @@ def collect_seeds(cfg):
 
 
 def process_one(db_path, item, cfg):
-    # Соединение открываем внутри воркера: sqlite-объект нельзя шарить между потоками.
-    con = dbmod.connect(db_path)
-    try:
-        return _process_one_inner(con, item, cfg)
-    finally:
-        con.close()
+    url, row, check = scan_url(item, cfg)
+    sid = store_result(cfg, url, row, check)
+    return sid, check["ok"], check.get("http_code")
 
 
-def _process_one_inner(con, item, cfg):
+def scan_url(item, cfg):
+    """Чисто сетевая часть (без БД). Возвращает (url, row, check)."""
     url = item["url"]
     pr = probemod.probe(url, timeout=cfg.get("timeout_sec", 12))
     ok = pr["ok"]
@@ -115,19 +113,31 @@ def _process_one_inner(con, item, cfg):
         "lastcheck": datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds"),
         "lastcheckok": ok,
     }
-    with _DB_LOCK:
-        geo = geomod.geo_lookup(con, url, cache_hours=cfg.get("geo_cache_hours", 24))
-        row["server_ip"] = geo.get("ip")
-        if not row.get("country"):
-            row["country"] = geo.get("country")
-        row["city"] = geo.get("city")
-        row["lat"] = geo.get("lat")
-        row["lon"] = geo.get("lon")
-        sid = dbmod.upsert_station(con, row)
-        dbmod.add_check(con, sid, ok, pr.get("http_code"), pr.get("measured_kbps"),
-                        pr.get("streamtitle"))
-        con.commit()
-    return sid, ok, pr.get("http_code")
+    check = {"ok": ok, "http_code": pr.get("http_code"),
+             "kbps": pr.get("measured_kbps"), "title": pr.get("streamtitle")}
+    return url, row, check
+
+
+def store_result(cfg, url, row, check):
+    """Запись результата + geo. Соединение своё, запись под локом
+    (sqlite-соединение нельзя шарить между потоками)."""
+    con = dbmod.connect(cfg["db_path"])
+    try:
+        with _DB_LOCK:
+            geo = geomod.geo_lookup(con, url, cache_hours=cfg.get("geo_cache_hours", 24))
+            row["server_ip"] = geo.get("ip")
+            if not row.get("country"):
+                row["country"] = geo.get("country")
+            row["city"] = geo.get("city")
+            row["lat"] = geo.get("lat")
+            row["lon"] = geo.get("lon")
+            sid = dbmod.upsert_station(con, row)
+            dbmod.add_check(con, sid, check["ok"], check.get("http_code"),
+                            check.get("kbps"), check.get("title"))
+            con.commit()
+        return sid
+    finally:
+        con.close()
 
 
 def cmd_once(cfg, limit=None, probe_only=False):

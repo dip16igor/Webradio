@@ -3,5 +3,7 @@ WORKDIR /app
 COPY schema.sql config.example.json ./
 COPY src ./src
 COPY tools ./tools
+COPY public ./public
 # config.json (если есть) монтируется/копируется отдельно, в образ не печём
-CMD ["python", "-m", "src.pipeline", "--once", "--limit", "200"]
+EXPOSE 3100
+CMD ["python", "-m", "src.webapi"]

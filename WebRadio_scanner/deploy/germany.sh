@@ -17,16 +17,18 @@ docker ps --format '{{.Names}} {{.Status}}' | grep -E 'webradio|radioscanner' ||
 mkdir -p "$DATA"
 cp -n "$APP/config.example.json" "$APP/config.json" 2>/dev/null || true
 
+# Сервисный режим: долгоживущий HTTP-сервис (API + UI) на 127.0.0.1:3100.
+# One-shot прогоны — кнопкой ▶ Скан из UI или tools/approve.py.
 cd "$APP"
 docker build -t radioscanner:1 .
 docker rm -f radioscanner 2>/dev/null || true
-# One-shot прогон БЕЗ restart-policy: команда завершается сама,
-# unless-stopped здесь дал бы бесконечный цикл перезапусков.
-docker run -d --name radioscanner \
+docker run -d --name radioscanner --restart unless-stopped \
+  -p 127.0.0.1:3100:3100 \
   -v "$DATA:/app/data" \
-  radioscanner:1 python -m src.pipeline --once --limit 200
+  radioscanner:1
 
 echo "--- webradio-web-de ПОСЛЕ (должен быть Up) ---"
 docker ps --format '{{.Names}} {{.Status}}' | grep -E 'webradio|radioscanner' || true
 echo "Логи сканера: docker logs radioscanner | tail -20"
 echo "БД: $DATA/scanner.db"
+echo "Caddy: нужен handle_path /scanner* -> localhost:3100 (см. README)"
