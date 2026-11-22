@@ -20,7 +20,9 @@ cp -n "$APP/config.example.json" "$APP/config.json" 2>/dev/null || true
 cd "$APP"
 docker build -t radioscanner:1 .
 docker rm -f radioscanner 2>/dev/null || true
-docker run -d --name radioscanner --restart unless-stopped \
+# One-shot прогон БЕЗ restart-policy: команда завершается сама,
+# unless-stopped здесь дал бы бесконечный цикл перезапусков.
+docker run -d --name radioscanner \
   -v "$DATA:/app/data" \
   radioscanner:1 python -m src.pipeline --once --limit 200
 
