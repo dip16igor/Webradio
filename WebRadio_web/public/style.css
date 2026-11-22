@@ -413,14 +413,18 @@ h2 {
 }
 
 .now-center {
-    flex: 1;
-    min-width: 0;
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 50%;
+    transform: translateY(-50%);
     text-align: center;
     font-size: 17px;
     font-weight: 700;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    pointer-events: none;
 }
 
 .now-center #idx-loc { color: #7ddb9b; }
