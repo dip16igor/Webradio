@@ -306,7 +306,8 @@ h2 {
     box-sizing: border-box;
 }
 
-.station-card .station-selector { height: 292px; min-width: 0; }
+.station-card .station-selector { height: 292px; min-width: 0; scrollbar-width: none; }
+.station-card .station-selector::-webkit-scrollbar { display: none; }
 
 .cover-card {
     background-color: var(--card);
