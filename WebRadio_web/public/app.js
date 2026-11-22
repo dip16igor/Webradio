@@ -410,11 +410,47 @@ document.addEventListener('DOMContentLoaded', () => {
         updateSelectedStation(false);
     });
 
+    // One wheel notch = one station, animated (~300ms) so the rotation is visible.
+    let wheelBusy = false, wheelPending = 0, wheelAcc = 0, wheelAccT = 0;
+    const wheelStep = (dir) => {
+        if (wheelBusy) { wheelPending = Math.max(-6, Math.min(6, wheelPending + dir)); return; }
+        const from = stationSelector.scrollTop;
+        const idx = Math.round(from / STATION_ITEM_HEIGHT);
+        const next = Math.min(Math.max(idx + dir, 0), TOTAL_STATIONS - 1);
+        const to = next * STATION_ITEM_HEIGHT;
+        if (to === from) { updateSelectedStation(false); return; }
+        wheelBusy = true;
+        stationSelector.style.scrollSnapType = 'none';
+        const t0 = performance.now(), dur = 300;
+        const fr = (t) => {
+            const k = Math.min((t - t0) / dur, 1);
+            const e = k < 0.5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2;
+            stationSelector.scrollTop = from + (to - from) * e;
+            if (k < 1) { requestAnimationFrame(fr); return; }
+            stationSelector.scrollTop = to;
+            stationSelector.style.scrollSnapType = '';
+            wheelBusy = false;
+            updateSelectedStation(false);
+            if (wheelPending !== 0) {
+                const d = wheelPending > 0 ? 1 : -1;
+                wheelPending -= d;
+                wheelStep(d);
+            }
+        };
+        requestAnimationFrame(fr);
+    };
     stationSelector.addEventListener('wheel', (e) => {
         e.preventDefault();
-        const scrollAmount = e.deltaY * 0.4; 
-        stationSelector.scrollTop += scrollAmount;
-    });
+        wheelAcc += e.deltaY;
+        clearTimeout(wheelAccT);
+        if (Math.abs(wheelAcc) >= 30) {
+            const d = wheelAcc > 0 ? 1 : -1;
+            wheelAcc = 0;
+            wheelStep(d);
+        } else {
+            wheelAccT = setTimeout(() => { wheelAcc = 0; }, 120);
+        }
+    }, { passive: false });
 
     // --- INITIALIZATION ---
     const createStationWheel = () => {
