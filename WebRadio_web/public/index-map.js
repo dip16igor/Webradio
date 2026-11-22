@@ -46,7 +46,7 @@
 
     function markIcon() {
         return L.divIcon({
-            className: '', html: '<div style="width:10px;height:10px;background:#00f0ff;border-radius:50%;box-shadow:0 0 8px #00f0ff;"></div>',
+            className: '', html: '<div style="width:10px;height:10px;background:var(--map-mark);border-radius:50%;box-shadow:0 0 8px var(--map-mark);"></div>',
             iconSize: [10, 10], iconAnchor: [5, 5]
         });
     }

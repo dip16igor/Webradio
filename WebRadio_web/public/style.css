@@ -31,6 +31,7 @@
     --map-accent: #7ddb9b;
     --map-vol: #4dff88;
     --map-warn: #f2c94d;
+    --map-mark: #00f0ff;
     --shadow: 0 2px 10px rgba(0,0,0,0.5);
 }
 
@@ -66,6 +67,7 @@
     --map-accent: #0e6e3e;
     --map-vol: #0a9b4d;
     --map-warn: #8a5f00;
+    --map-mark: #0077cc;
     --shadow: 0 2px 10px rgba(0,0,0,0.1);
 }
 
