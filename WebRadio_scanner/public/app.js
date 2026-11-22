@@ -163,6 +163,31 @@ $("approveBtn").onclick = async () => {
     loadStatus();
   } catch (e) { showErr("Approve: " + e.message); }
 };
+$("pushBtn").onclick = () => {
+  if (!state.selected.size) return showErr("Ничего не отмечено");
+  $("pushText").textContent = `Отмечено: ${state.selected.size} — допишутся в конец списка WebRadio (дубли и auth-walled пропускаются).`;
+  $("pushResult").textContent = "";
+  $("pushToken").value = localStorage.getItem("webradio_token") || "";
+  $("pushModal").classList.remove("hidden");
+};
+$("pushCancel").onclick = () => $("pushModal").classList.add("hidden");
+$("pushGo").onclick = async () => {
+  const token = $("pushToken").value.trim();
+  if (!token) return showErr("Нужен токен WebRadio");
+  if ($("pushRemember").checked) localStorage.setItem("webradio_token", token);
+  $("pushGo").disabled = true;
+  try {
+    const r = await jpost("push", { ids: [...state.selected], token });
+    const parts = [`добавлено: ${r.added_n}`];
+    if (r.skipped_dup.length) parts.push(`дубли: ${r.skipped_dup.length}`);
+    if (r.skipped_auth.length) parts.push(`auth-walled: ${r.skipped_auth.length} (${r.skipped_auth.join("; ")})`);
+    if (r.errors.length) parts.push(`ошибки: ${r.errors.map((e) => e.name + " — " + e.error).join("; ")}`);
+    $("pushResult").textContent = parts.join(" · ");
+    state.selected.clear();
+    load();
+  } catch (e) { showErr("Push: " + e.message); }
+  $("pushGo").disabled = false;
+};
 $("recheckBtn").onclick = async () => {
   if (!state.selected.size) return showErr("Ничего не отмечено");
   try {

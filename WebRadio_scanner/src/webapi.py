@@ -187,6 +187,75 @@ def relay_open(url, range_hdr=None, timeout=12):
     raise last_err
 
 
+def wr_request(base, method, path, token, body=None, timeout=20):
+    """Запрос к API WebRadio. 401 -> PermissionError, остальное -> dict."""
+    data = json.dumps(body).encode() if body is not None else None
+    req = urllib.request.Request(base + path, data=data, method=method,
+                                 headers={"X-Auth-Token": token,
+                                          "Content-Type": "application/json",
+                                          "User-Agent": "WebRadio_scanner/1.0"})
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as r:
+            return json.load(r)
+    except urllib.error.HTTPError as e:
+        if e.code == 401:
+            raise PermissionError("bad token")
+        try:
+            return json.load(e)
+        except Exception:
+            raise RuntimeError(f"http {e.code}")
+
+
+def push_to_webradio(cfg, ids, token):
+    """Append отмеченных в конец списка WebRadio. Возвращает отчёт."""
+    base = (cfg.get("webradio_api") or
+            "http://host.docker.internal:3000/api/radio").rstrip("/")
+    cur = wr_request(base, "GET", "/stations", token)
+    if not cur.get("success"):
+        raise RuntimeError(cur.get("message") or "stations failed")
+    live = cur["data"]["stations"]
+    if len(live) >= 255:
+        raise RuntimeError("list full (255)")
+    existing = {s.get("url") for s in live}
+    con = dbmod.connect(cfg["db_path"])
+    rows = con.execute(
+        f"SELECT id, name, url, genre, auth_walled FROM stations "
+        f"WHERE id IN ({','.join('?' for _ in ids)})", ids).fetchall()
+    con.close()
+    by_id = {r[0]: r for r in rows}
+    added, skipped_dup, skipped_auth, errors = [], [], [], []
+    for i in ids:
+        r = by_id.get(i)
+        if r is None:
+            continue
+        _id, name, url, genre, auth_walled = r[0], r[1], r[2], r[3], r[4]
+        if url in existing:
+            skipped_dup.append(name or url)
+            continue
+        if auth_walled:
+            skipped_auth.append(name or url)
+            continue
+        if not url or len(url) > 200 or not url.startswith(("http://", "https://")):
+            errors.append({"name": name or url, "error": "bad url"})
+            continue
+        try:
+            res = wr_request(base, "POST", "/stations", token,
+                             {"name": (name or url)[:60], "url": url,
+                              "genre": genre or "radio"})
+        except Exception as e:
+            errors.append({"name": name or url, "error": str(e)})
+            continue
+        if res.get("success"):
+            added.append(name or url)
+            existing.add(url)
+        else:
+            errors.append({"name": name or url,
+                           "error": res.get("message") or "rejected"})
+    return {"added": added, "added_n": len(added),
+            "skipped_dup": skipped_dup, "skipped_auth": skipped_auth,
+            "errors": errors}
+
+
 class Handler(BaseHTTPRequestHandler):
     server_version = "ScannerHTTP/1.0"
 
@@ -342,6 +411,21 @@ class Handler(BaseHTTPRequestHandler):
             n = con.total_changes
             con.close()
             self._json({"approved": n})
+        elif u.path == "/api/push":
+            # Дописать отмеченные в конец списка WebRadio (append, без перезаписи).
+            # Токен приходит из браузера каждый раз, на сервере не хранится.
+            ids = [int(i) for i in (data.get("ids") or [])]
+            token = (data.get("token") or "").strip()
+            if not ids:
+                return self._json({"error": "no ids"}, 400)
+            if not token:
+                return self._json({"error": "no token"}, 401)
+            try:
+                self._json(push_to_webradio(get_cfg(), ids, token))
+            except PermissionError:
+                self._json({"error": "bad token"}, 401)
+            except Exception as e:
+                self._json({"error": f"webradio: {type(e).__name__}"}, 502)
         else:
             self._json({"error": "unknown endpoint"}, 404)
 

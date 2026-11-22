@@ -24,6 +24,7 @@ docker build -t radioscanner:1 .
 docker rm -f radioscanner 2>/dev/null || true
 docker run -d --name radioscanner --restart unless-stopped \
   -p 127.0.0.1:3100:3100 \
+  --add-host host.docker.internal:host-gateway \
   -v "$DATA:/app/data" \
   radioscanner:1
 

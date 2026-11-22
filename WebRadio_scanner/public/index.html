@@ -37,6 +37,7 @@
   </select>
   <button id="exportBtn" title="JSON в формате PUT /stations">⤓ Экспорт</button>
   <button id="approveBtn" title="Одобрить отмеченные">✓ Approve</button>
+  <button id="pushBtn" title="Дописать отмеченные в конец списка WebRadio">➕ В WebRadio</button>
   <button id="recheckBtn" title="Перепроверить отмеченные">↻ Recheck</button>
 </div>
 
@@ -55,6 +56,19 @@
     <div class="mhead">Экспорт для WebRadio <button id="copyBtn">Копировать</button><button id="closeBtn">✕</button></div>
     <textarea id="expText" readonly></textarea>
     <div class="mhint">Вставь в Station Manager → импорт после твоего «ок».</div>
+  </div>
+</div>
+
+<div id="pushModal" class="modal hidden">
+  <div class="mbox">
+    <div class="mhead">➕ В конец списка WebRadio</div>
+    <div id="pushText" class="mhint"></div>
+    <input id="pushToken" type="password" placeholder="Токен WebRadio (как в Station Manager)" style="width:100%;margin:8px 0">
+    <label class="chk"><input id="pushRemember" type="checkbox" checked> запомнить в этом браузере</label>
+    <div style="display:flex;gap:8px;margin-top:10px">
+      <button id="pushGo">Добавить</button><button id="pushCancel" class="ghost">Отмена</button>
+    </div>
+    <div id="pushResult" class="mhint"></div>
   </div>
 </div>
 
