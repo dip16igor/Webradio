@@ -26,6 +26,8 @@ WebRadio_scanner/
     geo.py              # DNS → ip-api.com, кэш по хосту 24 ч
     classify.py         # маппинг жанров на белый список + эвристики рекламы
     pipeline.py         # оркестрация: сиды → probe → geo → запись в БД
+    webapi.py           # HTTP-сервис: JSON API + UI (порт web_port, дефолт 3100)
+  public/               # веб-интерфейс: таблица, фильтры, скан, approve, экспорт
     sources/
       radiobrowser.py   # radio-browser.info API (требует UA)
       icecast.py        # разбор status-json.xsl публичных Icecast-серверов
@@ -41,9 +43,14 @@ WebRadio_scanner/
 ```bash
 cd F:/NextCloud/Webradio/WebRadio_scanner
 cp config.example.json config.json   # config.json в git не идёт
-python -m src.pipeline --once --limit 20
+python -m src.webapi                 # UI: http://127.0.0.1:3100/
+# или CLI: python -m src.pipeline --once --limit 20
 python tools/approve.py --min-bitrate 48 --limit 30
 ```
+
+UI умеет: фильтры (поиск/жанр/страна/только живые/approve, сортировки),
+кнопку ▶ Скан с прогрессом, прослушивание https-потоков, Approve галочками,
+перепроверку отмеченных, экспорт JSON для WebRadio.
 
 Зависимостей вне stdlib нет (`requirements.txt` пуст, `requests` не нужен —
 всё на `urllib`, чтобы работало и на сервере без pip).
@@ -54,6 +61,20 @@ python tools/approve.py --min-bitrate 48 --limit 30
 scp -r WebRadio_scanner germany:/opt/radioscanner
 ssh germany 'bash /opt/radioscanner/deploy/germany.sh'
 ```
+
+Сервис: контейнер `radioscanner` (`--restart unless-stopped`,
+`127.0.0.1:3100:3100`, volume `/opt/radioscanner/data`).
+Caddy: добавить рядом с webradio-блоком (аддитивно, прод не трогаем):
+
+```
+	handle_path /scanner* {
+		reverse_proxy localhost:3100
+	}
+```
+
+после чего `caddy validate --config /etc/caddy/Caddyfile && systemctl restart caddy`.
+UI: https://mirrorhub.space:8443/scanner/ — ссылка-кнопка Scanner в шапке
+WebRadio (`WebRadio_web/public/index.html`).
 
 Детали — в `deploy/germany.sh`. Проверка неубиваемости прод-сервиса:
 `docker ps --format '{{.Names}} {{.Status}}'` — `webradio-web-de` должен остаться `Up`.
