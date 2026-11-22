@@ -28,6 +28,9 @@
     --map-sub: #dddddd;
     --map-stroke: #000000;
     --map-bar-off: rgba(255, 255, 255, 0.25);
+    --map-accent: #7ddb9b;
+    --map-vol: #4dff88;
+    --map-warn: #f2c94d;
     --shadow: 0 2px 10px rgba(0,0,0,0.5);
 }
 
@@ -60,6 +63,9 @@
     --map-sub: #333333;
     --map-stroke: #ffffff;
     --map-bar-off: rgba(0, 0, 0, 0.25);
+    --map-accent: #0e6e3e;
+    --map-vol: #0a9b4d;
+    --map-warn: #8a5f00;
     --shadow: 0 2px 10px rgba(0,0,0,0.1);
 }
 
@@ -435,7 +441,7 @@ h2 {
     pointer-events: none;
 }
 
-.now-center #idx-loc { color: #7ddb9b; }
+.now-center #idx-loc { color: var(--map-accent); }
 
 .now-track {
     font-size: 15px;
@@ -454,11 +460,11 @@ h2 {
 
 .led i { width: 9px; height: 9px; border-radius: 50%; background: #3a3a3a; box-shadow: inset 0 0 2px #000; }
 
-.led.on-pwr { color: #7ddb9b; }
-.led.on-pwr i { background: #37d67a; box-shadow: 0 0 6px #37d67a; }
+.led.on-pwr { color: var(--map-accent); }
+.led.on-pwr i { background: var(--map-vol); box-shadow: 0 0 6px var(--map-vol); }
 
-.led.on-slp { color: #f2c94d; }
-.led.on-slp i { background: #f2c94d; box-shadow: 0 0 6px #f2c94d; animation: ledBlink 1.6s ease-in-out infinite; }
+.led.on-slp { color: var(--map-warn); }
+.led.on-slp i { background: var(--map-warn); box-shadow: 0 0 6px var(--map-warn); animation: ledBlink 1.6s ease-in-out infinite; }
 
 @keyframes ledBlink { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
 
@@ -476,8 +482,8 @@ h2 {
 .now-volrow .volume-bar { background-color: var(--map-bar-off); }
 
 .now-volrow .volume-bar.active {
-    background-color: #4dff88;
-    box-shadow: 0 0 5px #4dff88;
+    background-color: var(--map-vol);
+    box-shadow: 0 0 5px var(--map-vol);
 }
 
 .now-alarmrow {
@@ -534,8 +540,6 @@ h2 {
 }
 
 .now-rightside { display: flex; gap: 10px; align-items: center; }
-
-#idx-loc { color: #7ddb9b; }
 
 .now-drop.dropouts-bad { color: #f2a1a1; font-weight: bold; }
 
