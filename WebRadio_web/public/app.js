@@ -410,36 +410,34 @@ document.addEventListener('DOMContentLoaded', () => {
         updateSelectedStation(false);
     });
 
-    // One wheel notch = one station, animated (~300ms) so the rotation is visible.
-    // Fast spinning accelerates: 2-5 stations per step.
-    let wheelBusy = false, wheelPending = 0, wheelAcc = 0, wheelAccT = 0;
-    let wheelBoost = 1, wheelLastT = 0;
-    const wheelStep = (dir, n) => {
-        if (wheelBusy) { wheelPending = Math.max(-12, Math.min(12, wheelPending + dir * n)); return; }
-        const from = stationSelector.scrollTop;
-        const idx = Math.round(from / STATION_ITEM_HEIGHT);
+    // Wheel chases a moving target: each notch pushes the target further,
+    // speed is proportional to distance — slow spin = 1 station, fast spin = fly.
+    let wTarget = null, wRaf = 0, wAcc = 0, wAccT = 0, wheelBoost = 1, wheelLastT = 0;
+    const wTick = () => {
+        const cur = stationSelector.scrollTop;
+        const d = wTarget - cur;
+        if (Math.abs(d) < 0.5) {
+            stationSelector.scrollTop = wTarget;
+            wTarget = null; wRaf = 0;
+            stationSelector.style.scrollSnapType = '';
+            updateSelectedStation(false);
+            return;
+        }
+        stationSelector.scrollTop = cur + d * 0.22;
+        updateSelectedStation(false);
+        wRaf = requestAnimationFrame(wTick);
+    };
+    const wheelNotch = (dir, n) => {
+        const base = (wTarget === null) ? stationSelector.scrollTop : wTarget;
+        const idx = Math.round(base / STATION_ITEM_HEIGHT);
         const next = Math.min(Math.max(idx + dir * n, 0), TOTAL_STATIONS - 1);
         const to = next * STATION_ITEM_HEIGHT;
-        if (to === from) { updateSelectedStation(false); return; }
-        wheelBusy = true;
-        stationSelector.style.scrollSnapType = 'none';
-        const t0 = performance.now(), dur = 300;
-        const fr = (t) => {
-            const k = Math.min((t - t0) / dur, 1);
-            const e = k < 0.5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2;
-            stationSelector.scrollTop = from + (to - from) * e;
-            if (k < 1) { requestAnimationFrame(fr); return; }
-            stationSelector.scrollTop = to;
-            stationSelector.style.scrollSnapType = '';
-            wheelBusy = false;
-            updateSelectedStation(false);
-            if (wheelPending !== 0) {
-                const d = wheelPending > 0 ? 1 : -1;
-                wheelPending -= d;
-                wheelStep(d, 1);
-            }
-        };
-        requestAnimationFrame(fr);
+        if (to === base && wRaf === 0) { updateSelectedStation(false); return; }
+        wTarget = to;
+        if (wRaf === 0) {
+            stationSelector.style.scrollSnapType = 'none';
+            wRaf = requestAnimationFrame(wTick);
+        }
     };
     stationSelector.addEventListener('wheel', (e) => {
         e.preventDefault();
@@ -451,7 +449,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const now = performance.now();
             wheelBoost = (now - wheelLastT < 150) ? Math.min(wheelBoost + 1, 5) : 1;
             wheelLastT = now;
-            wheelStep(d, wheelBoost);
+            wheelNotch(d, wheelBoost);
         } else {
             wheelAccT = setTimeout(() => { wheelAcc = 0; }, 120);
         }
