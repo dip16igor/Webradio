@@ -306,8 +306,29 @@ h2 {
     box-sizing: border-box;
 }
 
-.station-card .station-selector { height: 292px; min-width: 0; scrollbar-width: none; }
+.station-card .station-selector { height: 292px; min-width: 0; scrollbar-width: none; border: none; scroll-snap-type: y mandatory; }
 .station-card .station-selector::-webkit-scrollbar { display: none; }
+
+.station-card { position: relative; }
+
+.wheel-frame {
+    position: absolute;
+    left: 12px;
+    right: 12px;
+    top: 50%;
+    height: 50px;
+    transform: translateY(-50%);
+    border: 1px solid var(--ok-text);
+    border-radius: 10px;
+    background: transparent;
+    pointer-events: none;
+    z-index: 2;
+}
+
+.station-card .station-item {
+    scroll-snap-align: center;
+    scroll-snap-stop: always;
+}
 
 .cover-card {
     background-color: var(--card);
@@ -370,9 +391,6 @@ h2 {
     font-size: 1.3em;
     opacity: 1;
     transform: scale(1);
-    border: 1px solid var(--ok-text);
-    border-radius: 10px;
-    background: var(--row-bg);
     cursor: pointer;
 }
 
