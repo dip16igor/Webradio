@@ -9,7 +9,7 @@ STATION_COLS = (
     "bitrate", "samplerate", "channels", "icy_br", "server_ip",
     "country", "station_country", "city", "lat", "lon", "source", "auth_walled",
     "ads_score", "talk_ratio", "streamtitle", "lastcheck",
-    "lastcheckok", "fail_count", "approved",
+    "lastcheckok", "fail_count", "approved", "blacklisted",
 )
 
 
@@ -27,6 +27,8 @@ def init_db(con):
     cols = [r[1] for r in con.execute("PRAGMA table_info(stations)").fetchall()]
     if "station_country" not in cols:
         con.execute("ALTER TABLE stations ADD COLUMN station_country TEXT")
+    if "blacklisted" not in cols:
+        con.execute("ALTER TABLE stations ADD COLUMN blacklisted INTEGER NOT NULL DEFAULT 0")
     con.commit()
 
 

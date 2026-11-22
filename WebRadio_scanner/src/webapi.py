@@ -82,6 +82,10 @@ def query_stations(con, params, for_export=False):
         where.append("approved = 0")
     elif params.get("approved") == "1":
         where.append("approved = 1")
+    if params.get("blacklisted") == "1":
+        where.append("blacklisted = 1")
+    else:
+        where.append("COALESCE(blacklisted, 0) = 0")
     if for_export:
         where.append("lastcheckok = 1 AND fail_count = 0 AND auth_walled = 0")
     sql_where = ("WHERE " + " AND ".join(where)) if where else ""
@@ -99,7 +103,7 @@ def query_stations(con, params, for_export=False):
     rows = con.execute(
         f"""SELECT id, url, name, genre, codec, bitrate, samplerate, channels,
                    country, station_country, city, ads_score, streamtitle, lastcheck, lastcheckok,
-                   fail_count, approved, auth_walled, source
+                   fail_count, approved, blacklisted, auth_walled, source
             FROM stations {sql_where} ORDER BY {sort} LIMIT ? OFFSET ?""",
         (*args, limit, offset)).fetchall()
     return total, [dict(r) for r in rows]
@@ -107,6 +111,7 @@ def query_stations(con, params, for_export=False):
 
 def scan_worker(limit):
     cfg = get_cfg()
+    pipe.refresh_blacklist(cfg["db_path"])
     try:
         seeds = pipe.collect_seeds(cfg)
         if limit:
@@ -132,6 +137,7 @@ def scan_worker(limit):
 
 def recheck_worker(ids):
     cfg = get_cfg()
+    pipe.refresh_blacklist(cfg["db_path"])
     try:
         con = dbmod.connect(cfg["db_path"])
         rows = con.execute(
@@ -219,7 +225,7 @@ def push_to_webradio(cfg, ids, token):
     existing = {s.get("url") for s in live}
     con = dbmod.connect(cfg["db_path"])
     rows = con.execute(
-        f"SELECT id, name, url, genre, auth_walled FROM stations "
+        f"SELECT id, name, url, genre, auth_walled, COALESCE(blacklisted, 0) FROM stations "
         f"WHERE id IN ({','.join('?' for _ in ids)})", ids).fetchall()
     con.close()
     by_id = {r[0]: r for r in rows}
@@ -228,7 +234,9 @@ def push_to_webradio(cfg, ids, token):
         r = by_id.get(i)
         if r is None:
             continue
-        _id, name, url, genre, auth_walled = r[0], r[1], r[2], r[3], r[4]
+        _id, name, url, genre, auth_walled, blacklisted = r[0], r[1], r[2], r[3], r[4], r[5]
+        if blacklisted:
+            continue
         if url in existing:
             skipped_dup.append(name or url)
             continue
@@ -426,6 +434,21 @@ class Handler(BaseHTTPRequestHandler):
                 self._json({"error": "bad token"}, 401)
             except Exception as e:
                 self._json({"error": f"webradio: {type(e).__name__}"}, 502)
+        elif u.path == "/api/blacklist":
+            # Чёрный список: скрыть из выдачи и больше не пробовать при сканах.
+            ids = [int(i) for i in (data.get("ids") or [])]
+            on = data.get("on", True)
+            if not ids:
+                return self._json({"error": "no ids"}, 400)
+            cfg = get_cfg()
+            con = dbmod.connect(cfg["db_path"])
+            con.executemany("UPDATE stations SET blacklisted = ? WHERE id = ?",
+                            [(1 if on else 0, i) for i in ids])
+            con.commit()
+            n = con.total_changes
+            con.close()
+            pipe.refresh_blacklist(cfg["db_path"])
+            self._json({"blacklisted": n, "on": bool(on)})
         else:
             self._json({"error": "unknown endpoint"}, 404)
 

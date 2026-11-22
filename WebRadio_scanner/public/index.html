@@ -28,6 +28,7 @@
     <option value="1">одобренные</option>
   </select>
   <label class="chk"><input id="alive" type="checkbox" checked> только живые</label>
+  <label class="chk"><input id="showHidden" type="checkbox"> скрытые</label>
   <select id="sort">
     <option value="bitrate_desc">битрейт ↓</option>
     <option value="bitrate_asc">битрейт ↑</option>
@@ -39,6 +40,7 @@
   <button id="approveBtn" title="Одобрить отмеченные">✓ Approve</button>
   <button id="pushBtn" title="Дописать отмеченные в конец списка WebRadio">➕ В WebRadio</button>
   <button id="recheckBtn" title="Перепроверить отмеченные">↻ Recheck</button>
+  <button id="hideBtn" title="Скрыть отмеченные (в сканах больше не появятся)">✕ Скрыть</button>
 </div>
 
 <div id="count" class="count"></div>

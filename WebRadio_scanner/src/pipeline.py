@@ -23,6 +23,24 @@ from src.sources import radiobrowser as rb
 from src.sources import icecast as ice
 
 _DB_LOCK = threading.Lock()
+_BL = set()  # URL в чёрном списке: не пробовать и не обновлять
+_BL_LOCK = threading.Lock()
+
+
+def refresh_blacklist(db_path):
+    con = dbmod.connect(db_path)
+    try:
+        with _BL_LOCK:
+            _BL.clear()
+            _BL.update(r[0] for r in con.execute(
+                "SELECT url FROM stations WHERE blacklisted = 1").fetchall())
+    finally:
+        con.close()
+
+
+def is_blacklisted(url):
+    with _BL_LOCK:
+        return url in _BL
 
 
 def collect_seeds(cfg):
@@ -50,6 +68,8 @@ def collect_seeds(cfg):
 
 
 def process_one(db_path, item, cfg):
+    if is_blacklisted(item["url"]):
+        return None, 0, "blacklisted"
     url, row, check = scan_url(item, cfg)
     sid = store_result(cfg, url, row, check)
     return sid, check["ok"], check.get("http_code")
@@ -122,6 +142,8 @@ def scan_url(item, cfg):
 def store_result(cfg, url, row, check):
     """Запись результата + geo. Соединение своё, запись под локом
     (sqlite-соединение нельзя шарить между потоками)."""
+    if is_blacklisted(url) or is_blacklisted(row.get("url_resolved") or ""):
+        return None
     con = dbmod.connect(cfg["db_path"])
     try:
         with _DB_LOCK:
@@ -150,10 +172,11 @@ def cmd_once(cfg, limit=None, probe_only=False):
     with _DB_LOCK:
         geomod._ensure_cache(con)
         con.commit()
+    refresh_blacklist(cfg["db_path"])
     if probe_only:
         cur = con.execute(
             "SELECT url, name, description, genre, codec, bitrate, country, source "
-            "FROM stations WHERE lastcheckok = 0 OR lastcheck IS NULL ORDER BY id LIMIT ?",
+            "FROM stations WHERE blacklisted = 0 AND (lastcheckok = 0 OR lastcheck IS NULL) ORDER BY id LIMIT ?",
             (limit or 500,))
         seeds = [dict(r) for r in cur.fetchall()]
     else:
@@ -190,10 +213,13 @@ def main():
     if args.collect_only:
         con = dbmod.connect(cfg["db_path"])
         dbmod.init_db(con)
+        refresh_blacklist(cfg["db_path"])
         seeds = collect_seeds(cfg)
         if args.limit:
             seeds = seeds[:args.limit]
         for s in seeds:
+            if is_blacklisted(s["url"]):
+                continue
             dbmod.upsert_station(con, {
                 "url": s["url"], "name": s.get("name"), "description": s.get("description"),
                 "genre": clf.map_genre(s.get("genre")), "codec": s.get("codec"),

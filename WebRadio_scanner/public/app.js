@@ -31,6 +31,7 @@ function filters() {
   if ($("genre").value) p.set("genre", $("genre").value);
   if ($("approved").value) p.set("approved", $("approved").value);
   if ($("alive").checked) p.set("alive", "1");
+  if ($("showHidden").checked) p.set("blacklisted", "1");
   p.set("sort", $("sort").value);
   p.set("limit", state.limit);
   p.set("offset", state.offset);
@@ -80,6 +81,7 @@ async function load() {
         `<td class="st"><b>${esc(r.name || r.url)}</b><small>${esc(hostOf(r.url))}</small>` +
         (r.streamtitle ? `<div class="track">♪ ${esc(r.streamtitle)}</div>` : "") +
         (r.approved ? ' <span class="badge appr">approved</span>' : "") +
+        (r.blacklisted ? ' <span class="badge bad">скрыта</span>' : "") +
         (/\.m3u8($|\?)/i.test(r.url || "") ? ' <span class="badge warn">HLS</span>' : "") + `</td>` +
         `<td>${r.genre ? esc(r.genre) : '<span class="badge">?</span>'}</td>` +
         `<td>${streamCell(r)}</td>` +
@@ -197,6 +199,20 @@ $("recheckBtn").onclick = async () => {
   } catch (e) { showErr("Recheck: " + e.message); }
 };
 
+$("hideBtn").onclick = async () => {
+  if (!state.selected.size) return showErr("Ничего не отмечено");
+  const on = !$("showHidden").checked; // в обычном виде — скрыть; в виде скрытых — вернуть
+  try {
+    const r = await jpost("blacklist", { ids: [...state.selected], on });
+    state.selected.clear();
+    load();
+  } catch (e) { showErr("Чёрный список: " + e.message); }
+};
+$("showHidden").addEventListener("change", () => {
+  state.offset = 0; state.selected.clear();
+  $("hideBtn").textContent = $("showHidden").checked ? "↩ Вернуть" : "✕ Скрыть";
+  load();
+});
 ["q", "genre", "approved", "alive", "sort"].forEach((id) => {
   $("" + id).addEventListener("change", () => { state.offset = 0; load(); });
 });
