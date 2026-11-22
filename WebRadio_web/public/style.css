@@ -286,7 +286,7 @@ h2 {
     display: grid;
     grid-template-columns: minmax(0, 1fr) 220px;
     gap: 15px;
-    align-items: stretch;
+    align-items: start;
     margin-bottom: 20px;
 }
 
