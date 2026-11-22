@@ -85,7 +85,11 @@ def _process_one_inner(con, item, cfg):
 
     bitrate = pr.get("icy_br") or item.get("bitrate")
     if pr.get("measured_kbps") and (not bitrate):
-        bitrate = int(round(pr["measured_kbps"]))
+        # Замер по бурсту на быстрых серверах врёт в разы — принимать только
+        # значения внутри разумного диапазона, иначе оставлять NULL.
+        m = int(round(pr["measured_kbps"]))
+        if cfg.get("min_bitrate", 48) <= m <= cfg.get("max_bitrate", 320):
+            bitrate = m
 
     row = {
         "url": url,
@@ -108,7 +112,7 @@ def _process_one_inner(con, item, cfg):
         "ads_score": ads_score,
         "talk_ratio": None,
         "streamtitle": pr.get("streamtitle"),
-        "lastcheck": datetime.datetime.utcnow().isoformat(timespec="seconds"),
+        "lastcheck": datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds"),
         "lastcheckok": ok,
     }
     with _DB_LOCK:
