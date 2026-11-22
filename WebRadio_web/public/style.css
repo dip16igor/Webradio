@@ -465,6 +465,13 @@ h2 {
 
 .now-vol { min-width: 2ch; }
 
+.now-volrow .volume-bar { background-color: rgba(255, 255, 255, 0.25); }
+
+.now-volrow .volume-bar.active {
+    background-color: #4dff88;
+    box-shadow: 0 0 5px #4dff88;
+}
+
 .now-alarmrow {
     font-size: 13px;
     color: #ddd;
