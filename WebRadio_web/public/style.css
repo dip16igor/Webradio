@@ -423,6 +423,20 @@ h2 {
 
 .now-right { text-align: right; flex: none; color: #fff; }
 
+.now-leds { display: flex; gap: 8px; justify-content: flex-end; margin-bottom: 4px; }
+
+.led { display: inline-flex; align-items: center; gap: 4px; font-size: 10px; font-weight: 700; color: #bbb; letter-spacing: 0.5px; }
+
+.led i { width: 9px; height: 9px; border-radius: 50%; background: #3a3a3a; box-shadow: inset 0 0 2px #000; }
+
+.led.on-pwr { color: #7ddb9b; }
+.led.on-pwr i { background: #37d67a; box-shadow: 0 0 6px #37d67a; }
+
+.led.on-slp { color: #f2c94d; }
+.led.on-slp i { background: #f2c94d; box-shadow: 0 0 6px #f2c94d; animation: ledBlink 1.6s ease-in-out infinite; }
+
+@keyframes ledBlink { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+
 .now-volrow {
     display: flex;
     align-items: center;

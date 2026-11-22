@@ -280,6 +280,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const updateStatusUI = (data) => {
         isPowerOn = data.State?.includes('Power ON');
+        const pwrLed = document.getElementById('ind-power');
+        if (pwrLed) pwrLed.classList.toggle('on-pwr', !!isPowerOn);
+        const slpLed = document.getElementById('ind-slp');
+        if (slpLed) slpLed.classList.toggle('on-slp', /sleep/i.test(data.State || ''));
 
         if (data.State === 'Offline' || data.State === 'Connection Lost') {
             statusContainer.className = 'status-offline';
