@@ -41,12 +41,13 @@ MIME = {".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=ut
 _scan = {"running": False, "done": 0, "total": 0, "started_at": None, "error": None, "mode": None}
 _scan_lock = threading.Lock()
 _cfg = None
+_cfg_path = None
 
 
-def get_cfg():
+def get_cfg(path=None):
     global _cfg
     if _cfg is None:
-        _cfg = cfgmod.load_config()
+        _cfg = cfgmod.load_config(path or _cfg_path)
         con = dbmod.connect(_cfg["db_path"])
         dbmod.init_db(con)
         from src import geo as geomod
@@ -432,6 +433,21 @@ class Handler(BaseHTTPRequestHandler):
                 self._json({"error": "bad token"}, 401)
             except Exception as e:
                 self._json({"error": f"webradio: {type(e).__name__}"}, 502)
+        elif u.path == "/api/genre":
+            # Смена жанра одной станции (строго белый список).
+            from src import classify as clf
+            sid = int(data.get("id") or 0)
+            genre = (data.get("genre") or "").strip()
+            if not sid or genre not in clf.WHITELIST:
+                return self._json({"error": "bad genre"}, 422)
+            cfg = get_cfg()
+            con = dbmod.connect(cfg["db_path"])
+            con.execute("UPDATE stations SET genre = ?, updated_at = datetime('now') WHERE id = ?",
+                        (genre, sid))
+            con.commit()
+            n = con.total_changes
+            con.close()
+            self._json({"updated": n, "genre": genre})
         elif u.path == "/api/blacklist":
             # Чёрный список: скрыть из выдачи и больше не пробовать при сканах.
             ids = [int(i) for i in (data.get("ids") or [])]
@@ -452,9 +468,12 @@ class Handler(BaseHTTPRequestHandler):
 
 
 def main():
+    global _cfg_path
     ap = argparse.ArgumentParser()
     ap.add_argument("--port", type=int, default=None)
+    ap.add_argument("--config", default=None)
     args = ap.parse_args()
+    _cfg_path = args.config
     cfg = get_cfg()
     port = args.port or cfg.get("web_port", 3100)
     srv = ThreadingHTTPServer(("0.0.0.0", port), Handler)

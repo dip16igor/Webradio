@@ -59,6 +59,17 @@ function geoCell(r) {
     s += `<br><small style="color:var(--mut)">заявл.: ${esc(r.station_country)}</small>`;
   return s;
 }
+function genreCell(r) {
+  const WL = ["ambient", "chill", "chillout", "downtempo", "electronic", "jazz", "lofi",
+              "lounge", "nature", "pop", "radio", "relax", "rock", "trip-hop"];
+  const cur = r.genre || "";
+  let opts = WL.map((g) => `<option value="${g}"${g === cur ? " selected" : ""}>${g}</option>`).join("");
+  if (cur && !WL.includes(cur))
+    opts += `<option value="${esc(cur)}" selected>${esc(cur)} ?</option>`;
+  else if (!cur)
+    opts = `<option value="" selected disabled>?</option>` + opts;
+  return `<select class="genre-sel" data-id="${r.id}" data-prev="${esc(cur)}">${opts}</select>`;
+}
 function adsCell(r) {
   if (r.ads_score >= 60) return `<span class="badge bad">ads ${r.ads_score}</span>`;
   if (r.ads_score > 0) return `<span class="badge warn">ads ${r.ads_score}</span>`;
@@ -83,7 +94,7 @@ async function load() {
         (r.approved ? ' <span class="badge appr">approved</span>' : "") +
         (r.blacklisted ? ' <span class="badge bad">скрыта</span>' : "") +
         (/\.m3u8($|\?)/i.test(r.url || "") ? ' <span class="badge warn">HLS</span>' : "") + `</td>` +
-        `<td>${r.genre ? esc(r.genre) : '<span class="badge">?</span>'}</td>` +
+        `<td>${genreCell(r)}</td>` +
         `<td>${streamCell(r)}</td>` +
         `<td>${geoCell(r)}</td>` +
         `<td>${adsCell(r)}</td>` +
@@ -271,6 +282,16 @@ $("selAll").onchange = (e) => {
   load();
 };
 $("rows").addEventListener("change", (e) => {
+  const g = e.target.closest("select.genre-sel");
+  if (g) {
+    const id = +g.dataset.id, prev = g.dataset.prev || "";
+    g.dataset.prev = g.value;
+    jpost("genre", { id, genre: g.value }).catch((err) => {
+      showErr("Жанр: " + err.message);
+      g.value = prev;
+    });
+    return;
+  }
   const c = e.target.closest('input[type="checkbox"]');
   if (!c) return;
   const id = +c.dataset.id;

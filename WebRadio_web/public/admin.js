@@ -404,12 +404,20 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const genreTd = document.createElement('td');
             genreTd.className = 'col-genre';
-            const genreInput = document.createElement('input');
-            genreInput.type = 'text';
-            genreInput.value = station.genre || 'radio';
-            genreInput.setAttribute('list', 'genre-list');
-            genreInput.addEventListener('input', () => { station.genre = genreInput.value.trim() || 'radio'; });
-            genreTd.appendChild(genreInput);
+            const genreSel = document.createElement('select');
+            // Белый список жанров (сервис + Android знают ровно эти 14)
+            const GENRES = ['ambient', 'chill', 'chillout', 'downtempo', 'electronic', 'jazz', 'lofi', 'lounge', 'nature', 'pop', 'radio', 'relax', 'rock', 'trip-hop'];
+            const curGenre = (station.genre || 'radio').trim();
+            if (!GENRES.includes(curGenre)) GENRES.push(curGenre); // legacy-значение не теряем
+            for (const g of GENRES) {
+                const o = document.createElement('option');
+                o.value = g;
+                o.textContent = g;
+                if (g === curGenre) o.selected = true;
+                genreSel.appendChild(o);
+            }
+            genreSel.addEventListener('change', () => { station.genre = genreSel.value; });
+            genreTd.appendChild(genreSel);
             tr.appendChild(genreTd);
 
             const actionsTd = document.createElement('td');
