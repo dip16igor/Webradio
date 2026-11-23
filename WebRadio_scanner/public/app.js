@@ -278,7 +278,7 @@ $("rows").addEventListener("change", (e) => {
   $("count").textContent = $("count").textContent.replace(/\(отмечено: \d+\)/, `(отмечено: ${state.selected.size})`);
 });
 function playUrl(id, url, mode) {
-  const src = mode === "direct" ? url : api("relay?url=") + encodeURIComponent(url);
+  const src = mode === "direct" ? url : BASE + "relay?url=" + encodeURIComponent(url);
   player.src = src;
   player.play().then(() => { state.playingId = id; load(); })
     .catch(() => {
