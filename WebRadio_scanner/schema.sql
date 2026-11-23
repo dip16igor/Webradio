@@ -20,6 +20,7 @@ CREATE TABLE IF NOT EXISTS stations (
   city          TEXT,
   lat           REAL,
   lon           REAL,
+  play_url      TEXT,
   source        TEXT,
   auth_walled   INTEGER NOT NULL DEFAULT 0,
   ads_score     INTEGER,

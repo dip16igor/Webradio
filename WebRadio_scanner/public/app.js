@@ -88,7 +88,7 @@ async function load() {
         `<td>${geoCell(r)}</td>` +
         `<td>${adsCell(r)}</td>` +
         `<td><small>${esc((r.lastcheck || "").replace("T", " "))}<br>${r.lastcheckok ? "OK" : "FAIL"}</small></td>` +
-        `<td><button class="play ghost" data-id="${r.id}" data-url="${esc(r.url)}">▶</button> <button class="add ghost" data-id="${r.id}" title="Добавить в конец списка WebRadio">+</button></td>`;
+        `<td><button class="play ghost" data-id="${r.id}" data-url="${esc(r.play_url || r.url)}">▶</button> <button class="add ghost" data-id="${r.id}" title="Добавить в конец списка WebRadio">+</button></td>`;
       tb.appendChild(tr);
     }
     $("count").textContent = `Показано ${d.rows.length} из ${d.total} (отмечено: ${state.selected.size})`;

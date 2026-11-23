@@ -7,7 +7,7 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 STATION_COLS = (
     "url", "url_resolved", "name", "description", "genre", "codec",
     "bitrate", "samplerate", "channels", "icy_br", "server_ip",
-    "country", "station_country", "city", "lat", "lon", "source", "auth_walled",
+    "country", "station_country", "city", "lat", "lon", "play_url", "source", "auth_walled",
     "ads_score", "talk_ratio", "streamtitle", "lastcheck",
     "lastcheckok", "fail_count", "approved", "blacklisted",
 )
@@ -29,6 +29,9 @@ def init_db(con):
         con.execute("ALTER TABLE stations ADD COLUMN station_country TEXT")
     if "blacklisted" not in cols:
         con.execute("ALTER TABLE stations ADD COLUMN blacklisted INTEGER NOT NULL DEFAULT 0")
+    if "play_url" not in cols:
+        con.execute("ALTER TABLE stations ADD COLUMN play_url TEXT")
+        con.execute("UPDATE stations SET play_url = url WHERE play_url IS NULL")
     con.commit()
 
 

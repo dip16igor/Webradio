@@ -66,6 +66,7 @@ def probe(url, timeout=12, with_metadata=True):
     try:
         with urllib.request.urlopen(req, timeout=timeout) as resp:
             code = resp.status
+            final_url = resp.url
             headers = {k.lower(): v for k, v in resp.headers.items()}
             ctype = headers.get("content-type", "")
             metaint = None
@@ -99,6 +100,7 @@ def probe(url, timeout=12, with_metadata=True):
             return {
                 "ok": 1 if is_audio else 0,
                 "http_code": str(code),
+                "final_url": final_url,
                 "content_type": ctype,
                 "codec": _guess_codec(url, ctype),
                 "icy_name": headers.get("icy-name"),
@@ -118,7 +120,7 @@ def probe(url, timeout=12, with_metadata=True):
     except Exception as e:
         msg = str(e)
         kind = "timeout" if "timed out" in msg.lower() else "conn-fail"
-        return {"ok": 0, "http_code": "000", "content_type": None, "codec": None,
+        return {"ok": 0, "http_code": "000", "final_url": None, "content_type": None, "codec": None,
                 "icy_name": None, "icy_genre": None, "icy_description": None,
                 "icy_url": None, "icy_br": None, "icy_sr": None, "icy_ch": None,
                 "streamtitle": None, "measured_kbps": None, "audio_bytes": 0,

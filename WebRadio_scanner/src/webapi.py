@@ -91,19 +91,19 @@ def query_stations(con, params, for_export=False):
     sql_where = ("WHERE " + " AND ".join(where)) if where else ""
     total = con.execute(f"SELECT COUNT(*) FROM stations {sql_where}", args).fetchone()[0]
     if for_export:
-        cols = "name, url, genre"
+        cols = "name, url, play_url, genre"
         limit = min(int(params.get("limit", 500) or 500), 2000)
         rows = con.execute(
             f"SELECT {cols} FROM stations {sql_where} ORDER BY bitrate DESC NULLS LAST, id LIMIT ?",
             (*args, limit)).fetchall()
-        return total, [{"name": r[0] or r[1], "url": r[1], "genre": r[2] or "radio"} for r in rows]
+        return total, [{"name": r[0] or r[1], "url": r[2] or r[1], "genre": r[3] or "radio"} for r in rows]
     sort = SORTS.get(params.get("sort", "bitrate_desc"), SORTS["bitrate_desc"])
     limit = min(int(params.get("limit", 50) or 50), 500)
     offset = max(int(params.get("offset", 0) or 0), 0)
     rows = con.execute(
         f"""SELECT id, url, name, genre, codec, bitrate, samplerate, channels,
                    country, station_country, city, ads_score, streamtitle, lastcheck, lastcheckok,
-                   fail_count, approved, blacklisted, auth_walled, source
+                   fail_count, approved, blacklisted, play_url, auth_walled, source
             FROM stations {sql_where} ORDER BY {sort} LIMIT ? OFFSET ?""",
         (*args, limit, offset)).fetchall()
     return total, [dict(r) for r in rows]
@@ -167,8 +167,10 @@ RELAY_UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
             "Chrome/126.0.0.0 Safari/537.36")
 
 
-def relay_open(url, range_hdr=None, timeout=12):
-    """Открыть upstream для релея. Возвращает ответ urllib (с редиректами)."""
+def relay_open(url, timeout=12):
+    """Открыть upstream для релея. Возвращает ответ urllib (с редиректами).
+    Range от клиента НЕ пробрасываем и всегда отдаём 200: часть
+    Shoutcast-серверов отвечает 403 на Range, а seek живому радио не нужен."""
     from src import geo as geomod
     from urllib.parse import urlparse as _up
     host = _up(url).hostname or ""
@@ -180,8 +182,6 @@ def relay_open(url, range_hdr=None, timeout=12):
     headers = {"User-Agent": RELAY_UA, "Accept": "*/*",
                "Accept-Encoding": "identity", "Connection": "close",
                "Icy-MetaData": "0"}  # важно: без интерливинга метаданных, иначе декодер зациклится
-    if range_hdr:
-        headers["Range"] = range_hdr
     last_err = None
     for attempt in (0, 1):
         try:
@@ -228,7 +228,7 @@ def push_to_webradio(cfg, ids, token):
     existing = {s.get("url") for s in live}
     con = dbmod.connect(cfg["db_path"])
     rows = con.execute(
-        f"SELECT id, name, url, genre, auth_walled, COALESCE(blacklisted, 0) FROM stations "
+        f"SELECT id, name, url, play_url, genre, auth_walled, COALESCE(blacklisted, 0) FROM stations "
         f"WHERE id IN ({','.join('?' for _ in ids)})", ids).fetchall()
     con.close()
     by_id = {r[0]: r for r in rows}
@@ -237,30 +237,31 @@ def push_to_webradio(cfg, ids, token):
         r = by_id.get(i)
         if r is None:
             continue
-        _id, name, url, genre, auth_walled, blacklisted = r[0], r[1], r[2], r[3], r[4], r[5]
+        _id, name, url, play_url, genre, auth_walled, blacklisted = r[0], r[1], r[2], r[3], r[4], r[5], r[6]
         if blacklisted:
             continue
-        if url in existing:
+        stream = play_url or url
+        if url in existing or stream in existing:
             skipped_dup.append(name or url)
             continue
         if auth_walled:
             skipped_auth.append(name or url)
             continue
-        if not url or len(url) > 200 or not url.startswith(("http://", "https://")):
+        if not stream or len(stream) > 200 or not stream.startswith(("http://", "https://")):
             errors.append({"name": name or url, "error": "bad url"})
             continue
         try:
             res = wr_request(base, "POST", "/stations", token,
-                             {"name": (name or url)[:60], "url": url,
+                             {"name": (name or stream)[:60], "url": stream,
                               "genre": genre or "radio"})
         except Exception as e:
             errors.append({"name": name or url, "error": str(e)})
             continue
         if res.get("success"):
-            added.append(name or url)
-            existing.add(url)
+            added.append(name or stream)
+            existing.add(stream)
         else:
-            errors.append({"name": name or url,
+            errors.append({"name": name or stream,
                            "error": res.get("message") or "rejected"})
     return {"added": added, "added_n": len(added),
             "skipped_dup": skipped_dup, "skipped_auth": skipped_auth,
@@ -341,15 +342,15 @@ class Handler(BaseHTTPRequestHandler):
                 self._json(dict(_scan))
         elif u.path == "/relay":
             params = parse_qs(u.query)
-            self._relay((params.get("url") or [""])[0], self.headers.get("Range"))
+            self._relay((params.get("url") or [""])[0])
         else:
             self._static(u.path)
 
-    def _relay(self, url, range_hdr):
+    def _relay(self, url):
         if not url or not url.startswith(("http://", "https://")):
             return self._json({"error": "bad url"}, 400)
         try:
-            up = relay_open(url, range_hdr)
+            up = relay_open(url)
         except ValueError:
             return self._json({"error": "blocked host"}, 403)
         except urllib.error.HTTPError as e:
@@ -358,13 +359,7 @@ class Handler(BaseHTTPRequestHandler):
             return self._json({"error": f"upstream {type(e).__name__}"}, 502)
         try:
             ctype = up.headers.get("Content-Type", "audio/mpeg")
-            if up.status == 206 and up.headers.get("Content-Range"):
-                self.send_response(206)
-                self.send_header("Content-Range", up.headers["Content-Range"])
-                if up.headers.get("Content-Length"):
-                    self.send_header("Content-Length", up.headers["Content-Length"])
-            else:
-                self.send_response(200)
+            self.send_response(200)
             self.send_header("Content-Type", ctype)
             self.send_header("Cache-Control", "no-store")
             self.send_header("Connection", "close")

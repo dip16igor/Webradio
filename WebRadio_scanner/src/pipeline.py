@@ -135,6 +135,10 @@ def scan_url(item, cfg):
         m = int(round(pr["measured_kbps"]))
         if cfg.get("min_bitrate", 48) <= m <= cfg.get("max_bitrate", 320):
             bitrate = m
+    final = pr.get("final_url")
+    # Играть — конечный URL после редиректов (там реальный поток),
+    # в базе url остаётся каноническим ключом дедупликации.
+    play_url = final if (ok and final and final != url) else url
 
     row = {
         "url": url,
@@ -150,6 +154,7 @@ def scan_url(item, cfg):
         "server_ip": None,  # гео дописывается в store_result
         "country": None,    # только гео сервера; заявленная — в station_country
         "station_country": item.get("country"),
+        "play_url": play_url,
         "city": None,
         "lat": None,
         "lon": None,
