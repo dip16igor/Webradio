@@ -138,7 +138,13 @@ def scan_url(item, cfg):
     final = pr.get("final_url")
     # Играть — конечный URL после редиректов (там реальный поток),
     # в базе url остаётся каноническим ключом дедупликации.
-    play_url = final if (ok and final and final != url) else url
+    # Но токенизированные финалы (Zeno zt=, radiohost _art= и т.п. — живут минуты)
+    # не годятся: тогда играем исходный URL.
+    play_url = url
+    if ok and final and final != url:
+        q = final.lower()
+        if not any(t in q for t in ("zt=", "_art=", "token", "sess", "expir", "sign", "auth=")):
+            play_url = final
 
     row = {
         "url": url,
