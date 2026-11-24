@@ -71,13 +71,17 @@
 
         #station-table .col-name {
             min-width: 160px;
+            display: flex;
+            align-items: center;
         }
 
         #station-table .col-name input {
-            width: calc(100% - 30px);
+            flex: 1;
+            min-width: 0;
         }
 
         #station-table .st-flag {
+            flex: none;
             height: 14px;
             width: auto;
             margin-left: 6px;
