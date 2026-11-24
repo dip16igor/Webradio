@@ -347,6 +347,52 @@ document.addEventListener('DOMContentLoaded', () => {
         genreList.innerHTML = genres.map(g => `<option value="${g.replace(/"/g, '&quot;')}">`).join('');
     };
 
+    // --- COUNTRY FLAGS (lazy, throttled: ip-api allows 45 req/min) ---
+    const geoCcCache = (() => { try { return JSON.parse(localStorage.getItem('webradio_geo_cc') || '{}'); } catch (e) { return {}; } })();
+    const geoPending = [];
+    let geoPumpOn = false;
+    const pumpGeoFlags = () => {
+        if (geoPumpOn) return; geoPumpOn = true;
+        const step = () => {
+            const url = geoPending.shift();
+            if (!url) { geoPumpOn = false; return; }
+            const done = () => { setTimeout(step, 1500); };
+            fetch(API_BASE_PATH + '/geo?url=' + encodeURIComponent(url), { headers: { 'X-Auth-Token': getToken() } })
+                .then(r => r.json().catch(() => ({})))
+                .then(j => {
+                    const cc = ((j && j.data && j.data.countryCode) || '').toLowerCase();
+                    if (/^[a-z]{2}$/.test(cc)) {
+                        geoCcCache[url] = cc;
+                        try { localStorage.setItem('webradio_geo_cc', JSON.stringify(geoCcCache)); } catch (e) {}
+                        tbody.querySelectorAll('img.st-flag').forEach(im => {
+                            if (im.dataset.geoUrl === url && !im.getAttribute('src')) {
+                                im.src = 'https://flagcdn.com/w20/' + cc + '.png';
+                                im.srcset = 'https://flagcdn.com/w40/' + cc + '.png 2x';
+                            }
+                        });
+                    }
+                })
+                .catch(() => {})
+                .finally(done);
+        };
+        step();
+    };
+    const geoFlagImg = (url) => {
+        const img = document.createElement('img');
+        img.className = 'st-flag';
+        img.alt = '';
+        img.dataset.geoUrl = url || '';
+        const cc = url && geoCcCache[url];
+        if (cc) {
+            img.src = 'https://flagcdn.com/w20/' + cc + '.png';
+            img.srcset = 'https://flagcdn.com/w40/' + cc + '.png 2x';
+        } else if (url && !geoPending.includes(url)) {
+            geoPending.push(url);
+            pumpGeoFlags();
+        }
+        return img;
+    };
+
     const move = (index, delta) => {
         const target = index + delta;
         if (target < 0 || target >= stations.length) return;
@@ -390,6 +436,7 @@ document.addEventListener('DOMContentLoaded', () => {
             nameInput.placeholder = 'Station name';
             nameInput.addEventListener('input', () => { station.name = nameInput.value; });
             nameTd.appendChild(nameInput);
+            nameTd.appendChild(geoFlagImg(station.url));
             tr.appendChild(nameTd);
 
             const urlTd = document.createElement('td');
