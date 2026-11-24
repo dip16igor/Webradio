@@ -69,12 +69,22 @@
         });
     }
 
+    function escHtml(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+
     function showPlace(lat, lon, info) {
         if (!map) return;
         if (!marker) marker = L.marker([lat, lon], { icon: markIcon(), interactive: false }).addTo(map);
         else marker.setLatLng([lat, lon]);
         map.flyTo([lat, lon], 7, { duration: 2.8 });
-        if (locEl()) locEl().textContent = [info.city, info.country].filter(Boolean).join(', ') || info.ip || '';
+        var el = locEl();
+        if (!el) return;
+        var cc = (info.countryCode || '').toLowerCase();
+        var label = [info.city, info.country].filter(Boolean).join(', ') || info.ip || '';
+        if (/^[a-z]{2}$/.test(cc)) {
+            el.innerHTML = '<img class="loc-flag" src="https://flagcdn.com/w20/' + cc + '.png" srcset="https://flagcdn.com/w40/' + cc + '.png 2x" alt="" onerror="this.remove()"> ' + escHtml(label);
+        } else {
+            el.textContent = label;
+        }
     }
 
     function showUnknown() {
@@ -138,7 +148,7 @@
                 if (num !== lastNum) return;
                 var d = j && j.data;
                 if (j && j.success && d && !d.unknown && typeof d.lat === 'number' && typeof d.lon === 'number') {
-                    showPlace(d.lat, d.lon, { city: d.city, country: d.country, ip: d.ip });
+                    showPlace(d.lat, d.lon, { city: d.city, country: d.country, countryCode: d.countryCode, ip: d.ip });
                 } else if (!isRetry && d && isTransientGeoReason(d.reason)) {
                     // one retry: the lookup may have hit a transient failure (rate limit/timeout)
                     lastGeoRetryFor = num;

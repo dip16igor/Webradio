@@ -41,7 +41,7 @@ app.use(helmet({
             ...helmet.contentSecurityPolicy.getDefaultDirectives(),
             // Cover search in admin.html (browser fetch) + artwork <img>.
             'connect-src': ["'self'", 'https://itunes.apple.com'],
-            'img-src': ["'self'", 'data:', 'https://is1-ssl.mzstatic.com', 'https://is2-ssl.mzstatic.com', 'https://is3-ssl.mzstatic.com', 'https://is4-ssl.mzstatic.com', 'https://is5-ssl.mzstatic.com', 'https://server.arcgisonline.com'],
+            'img-src': ["'self'", 'data:', 'https://is1-ssl.mzstatic.com', 'https://is2-ssl.mzstatic.com', 'https://is3-ssl.mzstatic.com', 'https://is4-ssl.mzstatic.com', 'https://is5-ssl.mzstatic.com', 'https://server.arcgisonline.com', 'https://flagcdn.com'],
         },
     },
 }));
