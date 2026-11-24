@@ -99,7 +99,7 @@ async function load() {
         `<td>${geoCell(r)}</td>` +
         `<td>${adsCell(r)}</td>` +
         `<td><small>${esc((r.lastcheck || "").replace("T", " "))}<br>${r.lastcheckok ? "OK" : "FAIL"}</small></td>` +
-        `<td><button class="play ghost" data-id="${r.id}" data-url="${esc(r.play_url || r.url)}">▶</button> <button class="add ghost" data-id="${r.id}" title="Добавить в конец списка WebRadio">+</button></td>`;
+        `<td><button class="play ghost" data-id="${r.id}" data-url="${esc(r.play_url || r.url)}">${state.playingId === r.id ? "⏹" : "▶"}</button> <button class="add ghost" data-id="${r.id}" title="Добавить в конец списка WebRadio">+</button></td>`;
       tb.appendChild(tr);
     }
     $("count").textContent = `Показано ${d.rows.length} из ${d.total} (отмечено: ${state.selected.size})`;
@@ -313,7 +313,7 @@ $("rows").addEventListener("click", (e) => {
   const b = e.target.closest("button.play");
   if (!b) return;
   const id = +b.dataset.id, url = b.dataset.url;
-  if (state.playingId === id) { player.pause(); state.playingId = null; load(); return; }
+  if (state.playingId === id) { player.pause(); player.removeAttribute("src"); player.load(); state.playingId = null; load(); return; }
   playUrl(id, url, url.startsWith("https://") ? "direct" : "relay");
 });
 player.onended = player.onerror = () => { state.playingId = null; load(); };
