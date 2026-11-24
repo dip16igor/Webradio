@@ -12,6 +12,9 @@
     <link rel="icon" href="radio.svg" type="image/svg+xml">
     <script src="theme.js"></script>
     <style>
+        :root, :root[data-theme="dark"] { color-scheme: dark; }
+        :root[data-theme="light"] { color-scheme: light; }
+
         .admin-toolbar {
             display: flex;
             flex-wrap: wrap;
@@ -44,7 +47,8 @@
             top: 0;
         }
 
-        #station-table input {
+        #station-table input,
+        #station-table select {
             width: 100%;
             box-sizing: border-box;
             background: var(--card);
