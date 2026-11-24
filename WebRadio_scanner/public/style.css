@@ -40,7 +40,9 @@ tr.playing td{background:#1f6feb22}
 .badge.warn{color:var(--warn);border-color:var(--warn)}
 .badge.bad{color:var(--bad);border-color:var(--bad)}
 .badge.appr{color:var(--acc);border-color:var(--acc)}
-td .play{padding:3px 8px;font-size:12px}
+td .play{padding:3px 8px;font-size:12px;min-width:34px}
+.spin{display:inline-block;width:12px;height:12px;vertical-align:-1px;border:2px solid var(--mut);border-top-color:var(--acc);border-radius:50%;animation:rot .7s linear infinite}
+@keyframes rot{to{transform:rotate(360deg)}}
 .pager{display:flex;gap:10px;align-items:center;justify-content:center;margin:12px 0;color:var(--mut)}
 .modal{position:fixed;inset:0;background:#000a;display:flex;align-items:center;justify-content:center;z-index:10}
 .mbox{background:var(--card);border:1px solid var(--line);border-radius:10px;width:min(700px,92vw);padding:12px}

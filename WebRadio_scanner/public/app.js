@@ -99,7 +99,7 @@ async function load() {
         `<td>${geoCell(r)}</td>` +
         `<td>${adsCell(r)}</td>` +
         `<td><small>${esc((r.lastcheck || "").replace("T", " "))}<br>${r.lastcheckok ? "OK" : "FAIL"}</small></td>` +
-        `<td><button class="play ghost" data-id="${r.id}" data-url="${esc(r.play_url || r.url)}">${state.playingId === r.id ? "⏹" : "▶"}</button> <button class="add ghost" data-id="${r.id}" title="Добавить в конец списка WebRadio">+</button></td>`;
+        `<td><button class="play ghost" data-id="${r.id}" data-url="${esc(r.play_url || r.url)}">${state.connectingId === r.id ? '<span class="spin"></span>' : (state.playingId === r.id ? "⏹" : "▶")}</button> <button class="add ghost" data-id="${r.id}" title="Добавить в конец списка WebRadio">+</button></td>`;
       tb.appendChild(tr);
     }
     $("count").textContent = `Показано ${d.rows.length} из ${d.total} (отмечено: ${state.selected.size})`;
@@ -298,14 +298,18 @@ $("rows").addEventListener("change", (e) => {
   c.checked ? state.selected.add(id) : state.selected.delete(id);
   $("count").textContent = $("count").textContent.replace(/\(отмечено: \d+\)/, `(отмечено: ${state.selected.size})`);
 });
-function playUrl(id, url, mode) {
+function playUrl(id, url, mode, seq) {
+  if (seq !== state.playSeq) return; // устаревший клик
   const src = mode === "direct" ? url : BASE + "relay?url=" + encodeURIComponent(url);
   player.src = src;
-  player.play().then(() => { state.playingId = id; load(); })
-    .catch(() => {
-      if (mode === "direct") playUrl(id, url, "relay"); // direct-first, затем свой релей
-      else showErr("Не играет ни напрямую, ни через релей — битая ссылка или защита апстрима (HLS тоже пока не играется).");
-    });
+  player.play().then(() => {
+    if (seq !== state.playSeq) return;
+    state.playingId = id; state.connectingId = null; load();
+  }).catch(() => {
+    if (seq !== state.playSeq) return;
+    if (mode === "direct") playUrl(id, url, "relay", seq); // direct-first, затем свой релей
+    else { state.connectingId = null; load(); showErr("Не играет ни напрямую, ни через релей — битая ссылка или защита апстрима (HLS тоже пока не играется)."); }
+  });
 }
 $("rows").addEventListener("click", (e) => {
   const a = e.target.closest("button.add");
@@ -313,10 +317,21 @@ $("rows").addEventListener("click", (e) => {
   const b = e.target.closest("button.play");
   if (!b) return;
   const id = +b.dataset.id, url = b.dataset.url;
-  if (state.playingId === id) { player.pause(); player.removeAttribute("src"); player.load(); state.playingId = null; load(); return; }
-  playUrl(id, url, url.startsWith("https://") ? "direct" : "relay");
+  if (state.playingId === id && !state.connectingId) { // стоп
+    player.pause(); player.removeAttribute("src"); player.load();
+    state.playingId = null; load(); return;
+  }
+  state.playSeq = (state.playSeq || 0) + 1;
+  state.playingId = null; state.connectingId = id; load(); // спиннер сразу, не ждём сеть
+  playUrl(id, url, url.startsWith("https://") ? "direct" : "relay", state.playSeq);
 });
-player.onended = player.onerror = () => { state.playingId = null; load(); };
+player.addEventListener("playing", () => { // ожил после затыка — гасим спиннер
+  if (state.connectingId && state.playingId === state.connectingId) { state.connectingId = null; load(); }
+});
+player.addEventListener("waiting", () => { // затык в эфире — крутилка вместо ⏹
+  if (state.playingId && !state.connectingId) { state.connectingId = state.playingId; load(); }
+});
+player.onended = player.onerror = () => { state.playingId = null; state.connectingId = null; load(); };
 
 loadGenres();
 load();
