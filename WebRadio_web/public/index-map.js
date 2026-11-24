@@ -81,7 +81,7 @@
         var cc = (info.countryCode || '').toLowerCase();
         var label = [info.city, info.country].filter(Boolean).join(', ') || info.ip || '';
         if (/^[a-z]{2}$/.test(cc)) {
-            el.innerHTML = '<img class="loc-flag" src="https://flagcdn.com/w20/' + cc + '.png" srcset="https://flagcdn.com/w40/' + cc + '.png 2x" alt="" onerror="this.remove()"> ' + escHtml(label);
+            el.innerHTML = escHtml(label) + ' <img class="loc-flag" src="https://flagcdn.com/w20/' + cc + '.png" srcset="https://flagcdn.com/w40/' + cc + '.png 2x" alt="" onerror="this.remove()">';
         } else {
             el.textContent = label;
         }
