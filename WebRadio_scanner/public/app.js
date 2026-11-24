@@ -60,7 +60,7 @@ function normCountry(s) {
 function geoCell(r) {
   if (!r.country && !r.city) return '<span class="badge">?</span>';
   const cc = ccOf(r.country);
-  const flag = cc ? `<img class="flag" src="https://flagcdn.com/w20/${cc}.png" srcset="https://flagcdn.com/w40/${cc}.png 2x" width="18" alt="" loading="lazy"> ` : "";
+  const flag = cc ? `<img class="flag" src="https://flagcdn.com/w20/${cc}.png" srcset="https://flagcdn.com/w40/${cc}.png 2x" width="18" alt="" loading="lazy" onerror="this.remove()"> ` : "";
   let s = flag + esc([r.country, r.city].filter(Boolean).join(", "));
   if (r.station_country && normCountry(r.station_country) !== normCountry(r.country))
     s += `<br><small style="color:var(--mut)">заявл.: ${esc(r.station_country)}</small>`;
