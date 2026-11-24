@@ -47,6 +47,11 @@ function streamCell(r) {
   if (r.fail_count) s += ` <span class="badge bad">fail×${r.fail_count}</span>`;
   return s;
 }
+const CC = {afghanistan:"af",albania:"al",algeria:"dz",andorra:"ad",angola:"ao",argentina:"ar",armenia:"am",australia:"au",austria:"at",azerbaijan:"az",bahamas:"bs",bahrain:"bh",bangladesh:"bd",barbados:"bb",belarus:"by",belgium:"be",belize:"bz",benin:"bj",bhutan:"bt",bolivia:"bo","bosnia and herzegovina":"ba",botswana:"bw",brazil:"br",brunei:"bn",bulgaria:"bg","burkina faso":"bf",burundi:"bi",cambodia:"kh",cameroon:"cm",canada:"ca","cape verde":"cv","cabo verde":"cv","central african republic":"cf",chad:"td",chile:"cl",china:"cn",colombia:"co",comoros:"km",congo:"cg","democratic republic of the congo":"cd","costa rica":"cr",croatia:"hr",cuba:"cu",cyprus:"cy",czechia:"cz","czech republic":"cz",denmark:"dk",djibouti:"dj",dominica:"dm","dominican republic":"do",ecuador:"ec",egypt:"eg","el salvador":"sv","equatorial guinea":"gq",eritrea:"er",estonia:"ee",eswatini:"sz",swaziland:"sz",ethiopia:"et",fiji:"fj",finland:"fi",france:"fr",gabon:"ga",gambia:"gm",georgia:"ge",germany:"de",ghana:"gh",greece:"gr",grenada:"gd",guatemala:"gt",guinea:"gn","guinea-bissau":"gw",guyana:"gy",haiti:"ht",honduras:"hn",hungary:"hu",iceland:"is",india:"in",indonesia:"id",iran:"ir",iraq:"iq",ireland:"ie",israel:"il",italy:"it","cote divoire":"ci","côte divoire":"ci","ivory coast":"ci",jamaica:"jm",japan:"jp",jordan:"jo",kazakhstan:"kz",kenya:"ke",kosovo:"xk",kuwait:"kw",kyrgyzstan:"kg",laos:"la",latvia:"lv",lebanon:"lb",lesotho:"ls",liberia:"lr",libya:"ly",liechtenstein:"li",lithuania:"lt",luxembourg:"lu",madagascar:"mg",malawi:"mw",malaysia:"my",maldives:"mv",mali:"ml",malta:"mt",mauritania:"mr",mauritius:"mu",mexico:"mx",moldova:"md","republic of moldova":"md",monaco:"mc",mongolia:"mn",montenegro:"me",morocco:"ma",mozambique:"mz",myanmar:"mm",namibia:"na",nepal:"np",netherlands:"nl","new zealand":"nz",nicaragua:"ni",niger:"ne",nigeria:"ng","north korea":"kp","north macedonia":"mk",macedonia:"mk",norway:"no",oman:"om",pakistan:"pk",palau:"pw",palestine:"ps","palestinian territory":"ps",panama:"pa","papua new guinea":"pg",paraguay:"py",peru:"pe",philippines:"ph",poland:"pl",portugal:"pt",qatar:"qa",romania:"ro",russia:"ru","russian federation":"ru",rwanda:"rw","saint kitts and nevis":"kn","saint lucia":"lc","saint vincent and the grenadines":"vc",samoa:"ws","san marino":"sm","sao tome and principe":"st","saudi arabia":"sa",senegal:"sn",serbia:"rs",seychelles:"sc","sierra leone":"sl",singapore:"sg",slovakia:"sk",slovenia:"si","solomon islands":"sb",somalia:"so","south africa":"za","south korea":"kr","republic of korea":"kr","south sudan":"ss",spain:"es","sri lanka":"lk",sudan:"sd",suriname:"sr",sweden:"se",switzerland:"ch",syria:"sy",taiwan:"tw",tajikistan:"tj",tanzania:"tz",thailand:"th","timor-leste":"tl",togo:"tg",tonga:"to","trinidad and tobago":"tt",tunisia:"tn",turkey:"tr",türkiye:"tr",turkmenistan:"tm",uganda:"ug",ukraine:"ua","united arab emirates":"ae","united kingdom":"gb","united states":"us","united states of america":"us",uruguay:"uy",uzbekistan:"uz",vanuatu:"vu","vatican city":"va",vatican:"va",venezuela:"ve",vietnam:"vn",yemen:"ye",zambia:"zm",zimbabwe:"zw","hong kong":"hk",macao:"mo",macau:"mo","faroe islands":"fo",greenland:"gl",gibraltar:"gi","isle of man":"im",jersey:"je",guernsey:"gg","puerto rico":"pr",guam:"gu",curacao:"cw",curaçao:"cw",aruba:"aw",bermuda:"bm","cayman islands":"ky"};
+function ccOf(country) {
+  const t = normCountry(country || "").replace(/['’]/g, "");
+  return CC[t] || null;
+}
 function normCountry(s) {
   const t = (s || "").toLowerCase().replace(/^the\s+/, "").trim();
   return { "russian federation": "russia", "united states of america": "united states",
@@ -54,7 +59,9 @@ function normCountry(s) {
 }
 function geoCell(r) {
   if (!r.country && !r.city) return '<span class="badge">?</span>';
-  let s = esc([r.country, r.city].filter(Boolean).join(", "));
+  const cc = ccOf(r.country);
+  const flag = cc ? `<img class="flag" src="https://flagcdn.com/w20/${cc}.png" srcset="https://flagcdn.com/w40/${cc}.png 2x" width="18" alt="" loading="lazy"> ` : "";
+  let s = flag + esc([r.country, r.city].filter(Boolean).join(", "));
   if (r.station_country && normCountry(r.station_country) !== normCountry(r.country))
     s += `<br><small style="color:var(--mut)">заявл.: ${esc(r.station_country)}</small>`;
   return s;
